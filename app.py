@@ -245,10 +245,9 @@ def main():
                     # Format the dataframe for better display
                     display_early = early_entries.copy()
                     
-                    # Rename columns for better readability
+                    # Rename columns for better readability, excluding total_usd_value
                     column_renames_early = {
                         'wallet': 'Wallet Address',
-                        'total_usd_value': 'Total USD Spent',
                         'total_sol_value': 'Total SOL Spent',
                         'first_tx_time': 'First Entry Time',
                         'avg_entry_cap_weighted': 'Avg Entry Market Cap (Weighted)',
@@ -259,17 +258,74 @@ def main():
                         if old_name in display_early.columns:
                             display_early = display_early.rename(columns={old_name: new_name})
                     
-                    # Format numerical values
-                    if 'Total USD Spent' in display_early.columns:
-                        display_early['Total USD Spent'] = display_early['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
-                    if 'Total SOL Spent' in display_early.columns and display_early['Total SOL Spent'].sum() > 0:
-                        display_early['Total SOL Spent'] = display_early['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL")
-                    if 'Avg Entry Market Cap (Weighted)' in display_early.columns:
-                        display_early['Avg Entry Market Cap (Weighted)'] = display_early['Avg Entry Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
-                    if 'Transaction Count' in display_early.columns:
-                        display_early['Transaction Count'] = display_early['Transaction Count'].apply(lambda x: f"{x:,}")
+                    # Remove Total USD Spent column if it exists
+                    if 'total_usd_value' in display_early.columns:
+                        display_early = display_early.drop('total_usd_value', axis=1)
                     
-                    st.dataframe(display_early, use_container_width=True)
+                    # For proper sorting, create separate display and data columns
+                    if 'Total SOL Spent' in display_early.columns:
+                        # Keep original numeric values for sorting
+                        display_early['_sort_sol'] = early_entries['total_sol_value'] if 'total_sol_value' in early_entries.columns else 0
+                        # Format display values
+                        display_early['Total SOL Spent'] = display_early['_sort_sol'].apply(
+                            lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL"
+                        )
+                    
+                    if 'Avg Entry Market Cap (Weighted)' in display_early.columns:
+                        # Keep original numeric values for sorting
+                        display_early['_sort_cap'] = early_entries['avg_entry_cap_weighted'] if 'avg_entry_cap_weighted' in early_entries.columns else 0
+                        # Format display values
+                        display_early['Avg Entry Market Cap (Weighted)'] = display_early['_sort_cap'].apply(
+                            lambda x: f"${x:,.0f}"
+                        )
+                    
+                    if 'Transaction Count' in display_early.columns:
+                        display_early['_sort_count'] = early_entries['tx_count'] if 'tx_count' in early_entries.columns else 0
+                        display_early['Transaction Count'] = display_early['_sort_count'].apply(lambda x: f"{x:,}")
+                    
+                    # Select only the columns we want to display (exclude sort helper columns)
+                    display_columns = [col for col in display_early.columns if not col.startswith('_sort')]
+                    
+                    # Use column configuration to enable proper sorting on numeric columns
+                    column_config = {}
+                    if 'Total SOL Spent' in display_early.columns and '_sort_sol' in display_early.columns:
+                        column_config['Total SOL Spent'] = st.column_config.NumberColumn(
+                            "Total SOL Spent",
+                            help="Total SOL spent by wallet (sortable)",
+                            format="%,.2f SOL"
+                        )
+                    if 'Avg Entry Market Cap (Weighted)' in display_early.columns and '_sort_cap' in display_early.columns:
+                        column_config['Avg Entry Market Cap (Weighted)'] = st.column_config.NumberColumn(
+                            "Avg Entry Market Cap (Weighted)",
+                            help="Volume-weighted average market cap (sortable)",
+                            format="$%,.0f"
+                        )
+                    if 'Transaction Count' in display_early.columns and '_sort_count' in display_early.columns:
+                        column_config['Transaction Count'] = st.column_config.NumberColumn(
+                            "Transaction Count",
+                            help="Number of transactions (sortable)",
+                            format="%d"
+                        )
+                    
+                    # Create a dataframe with original values for proper sorting
+                    sortable_early = early_entries.copy()
+                    sortable_early = sortable_early.rename(columns={
+                        'wallet': 'Wallet Address',
+                        'total_sol_value': 'Total SOL Spent',
+                        'first_tx_time': 'First Entry Time',
+                        'avg_entry_cap_weighted': 'Avg Entry Market Cap (Weighted)',
+                        'tx_count': 'Transaction Count'
+                    })
+                    
+                    # Remove USD column from sortable dataframe too
+                    if 'total_usd_value' in sortable_early.columns:
+                        sortable_early = sortable_early.drop('total_usd_value', axis=1)
+                    
+                    st.dataframe(
+                        sortable_early, 
+                        use_container_width=True,
+                        column_config=column_config
+                    )
                     
                     # Download button for early entries
                     csv_buffer = io.StringIO()
@@ -290,10 +346,9 @@ def main():
                     # Format the dataframe for better display
                     display_whales = whale_wallets.copy()
                     
-                    # Rename columns for better readability
+                    # Rename columns for better readability, excluding total_usd_value
                     column_renames_whales = {
                         'wallet': 'Wallet Address',
-                        'total_usd_value': 'Total USD Spent',
                         'total_sol_value': 'Total SOL Spent',
                         'first_entry_time': 'First Entry Time',
                         'avg_market_cap_weighted': 'Avg Market Cap (Weighted)',
@@ -304,17 +359,50 @@ def main():
                         if old_name in display_whales.columns:
                             display_whales = display_whales.rename(columns={old_name: new_name})
                     
-                    # Format numerical values
-                    if 'Total USD Spent' in display_whales.columns:
-                        display_whales['Total USD Spent'] = display_whales['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
-                    if 'Total SOL Spent' in display_whales.columns and display_whales['Total SOL Spent'].sum() > 0:
-                        display_whales['Total SOL Spent'] = display_whales['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL")
-                    if 'Avg Market Cap (Weighted)' in display_whales.columns:
-                        display_whales['Avg Market Cap (Weighted)'] = display_whales['Avg Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
-                    if 'Transaction Count' in display_whales.columns:
-                        display_whales['Transaction Count'] = display_whales['Transaction Count'].apply(lambda x: f"{x:,}")
+                    # Remove Total USD Spent column if it exists
+                    if 'total_usd_value' in display_whales.columns:
+                        display_whales = display_whales.drop('total_usd_value', axis=1)
                     
-                    st.dataframe(display_whales, use_container_width=True)
+                    # Use column configuration for proper sorting
+                    column_config = {}
+                    if 'total_sol_value' in whale_wallets.columns:
+                        column_config['Total SOL Spent'] = st.column_config.NumberColumn(
+                            "Total SOL Spent",
+                            help="Total SOL spent by wallet (sortable)",
+                            format="%,.2f SOL"
+                        )
+                    if 'avg_market_cap_weighted' in whale_wallets.columns:
+                        column_config['Avg Market Cap (Weighted)'] = st.column_config.NumberColumn(
+                            "Avg Market Cap (Weighted)",
+                            help="Volume-weighted average market cap (sortable)",
+                            format="$%,.0f"
+                        )
+                    if 'tx_count' in whale_wallets.columns:
+                        column_config['Transaction Count'] = st.column_config.NumberColumn(
+                            "Transaction Count",
+                            help="Number of transactions (sortable)",
+                            format="%d"
+                        )
+                    
+                    # Create sortable dataframe with proper column names
+                    sortable_whales = whale_wallets.copy()
+                    sortable_whales = sortable_whales.rename(columns={
+                        'wallet': 'Wallet Address',
+                        'total_sol_value': 'Total SOL Spent',
+                        'first_entry_time': 'First Entry Time',
+                        'avg_market_cap_weighted': 'Avg Market Cap (Weighted)',
+                        'tx_count': 'Transaction Count'
+                    })
+                    
+                    # Remove USD column from sortable dataframe too
+                    if 'total_usd_value' in sortable_whales.columns:
+                        sortable_whales = sortable_whales.drop('total_usd_value', axis=1)
+                    
+                    st.dataframe(
+                        sortable_whales, 
+                        use_container_width=True,
+                        column_config=column_config
+                    )
                     
                     # Download button for whale wallets
                     csv_buffer = io.StringIO()
@@ -606,11 +694,12 @@ def main():
                     early_count = len(early_entries)
                     st.write("**Early Entry Stats:**")
                     if early_count > 0:
-                        early_total_usd = early_entries['total_usd_value'].sum() if 'total_usd_value' in early_entries.columns else 0
-                        early_avg_usd = early_entries['total_usd_value'].mean() if 'total_usd_value' in early_entries.columns else 0
+                        # Use SOL values instead of USD values
+                        early_total_sol = early_entries['total_sol_value'].sum() if 'total_sol_value' in early_entries.columns else 0
+                        early_avg_sol = early_entries['total_sol_value'].mean() if 'total_sol_value' in early_entries.columns else 0
                         st.write(f"• Count: {early_count}")
-                        st.write(f"• Total Spent: ${early_total_usd:,.2f}")
-                        st.write(f"• Avg per Wallet: ${early_avg_usd:,.2f}")
+                        st.write(f"• Total Spent: {early_total_sol:,.2f} SOL".replace(',', ' '))
+                        st.write(f"• Avg per Wallet: {early_avg_sol:,.2f} SOL".replace(',', ' '))
                     else:
                         st.write("• No early entries found")
                 
@@ -618,11 +707,12 @@ def main():
                     whale_count = len(whale_wallets)
                     st.write("**Whale Wallet Stats:**")
                     if whale_count > 0:
-                        whale_total_usd = whale_wallets['total_usd_value'].sum() if 'total_usd_value' in whale_wallets.columns else 0
-                        whale_avg_usd = whale_wallets['total_usd_value'].mean() if 'total_usd_value' in whale_wallets.columns else 0
+                        # Use SOL values instead of USD values
+                        whale_total_sol = whale_wallets['total_sol_value'].sum() if 'total_sol_value' in whale_wallets.columns else 0
+                        whale_avg_sol = whale_wallets['total_sol_value'].mean() if 'total_sol_value' in whale_wallets.columns else 0
                         st.write(f"• Count: {whale_count}")
-                        st.write(f"• Total Spent: ${whale_total_usd:,.2f}")
-                        st.write(f"• Avg per Whale: ${whale_avg_usd:,.2f}")
+                        st.write(f"• Total Spent: {whale_total_sol:,.2f} SOL".replace(',', ' '))
+                        st.write(f"• Avg per Whale: {whale_avg_sol:,.2f} SOL".replace(',', ' '))
                     else:
                         st.write("• No whales found")
                 
