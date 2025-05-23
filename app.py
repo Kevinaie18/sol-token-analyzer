@@ -268,7 +268,7 @@ def main():
                         display_early['_sort_sol'] = early_entries['total_sol_value'] if 'total_sol_value' in early_entries.columns else 0
                         # Format display values
                         display_early['Total SOL Spent'] = display_early['_sort_sol'].apply(
-                            lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL"
+                            lambda x: f"{x:,.2f}"
                         )
                     
                     if 'Avg Entry Market Cap (Weighted)' in display_early.columns:
@@ -292,7 +292,7 @@ def main():
                         column_config['Total SOL Spent'] = st.column_config.NumberColumn(
                             "Total SOL Spent",
                             help="Total SOL spent by wallet (sortable)",
-                            format="%,.2f SOL"
+                            format="%,.2f"
                         )
                     if 'Avg Entry Market Cap (Weighted)' in display_early.columns and '_sort_cap' in display_early.columns:
                         column_config['Avg Entry Market Cap (Weighted)'] = st.column_config.NumberColumn(
@@ -369,7 +369,7 @@ def main():
                         column_config['Total SOL Spent'] = st.column_config.NumberColumn(
                             "Total SOL Spent",
                             help="Total SOL spent by wallet (sortable)",
-                            format="%,.2f SOL"
+                            format="%,.2f"
                         )
                     if 'avg_market_cap_weighted' in whale_wallets.columns:
                         column_config['Avg Market Cap (Weighted)'] = st.column_config.NumberColumn(
