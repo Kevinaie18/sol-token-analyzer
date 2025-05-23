@@ -20,8 +20,15 @@ def calculate_price_and_market_cap(df: pd.DataFrame, total_supply: float) -> pd.
     """
     result_df = df.copy()
     
+    # Find value and amount columns regardless of case
+    value_col = next((col for col in df.columns if col.lower() == 'value'), None)
+    amount_col = next((col for col in df.columns if col.lower() == 'amount'), None)
+    
+    if not value_col or not amount_col:
+        raise ValueError("value or amount column not found in DataFrame")
+    
     # Calculate price = value / amount
-    result_df['price'] = result_df['value'] / result_df['amount']
+    result_df['price'] = result_df[value_col] / result_df[amount_col]
     
     # Calculate market cap = price * total_supply
     result_df['market_cap'] = result_df['price'] * total_supply
@@ -41,32 +48,38 @@ def analyze_wallets(df: pd.DataFrame, whale_threshold: float) -> Tuple[pd.DataFr
     Analyze wallets to identify early entries and whales.
     Returns (early_entries_df, whale_wallets_df).
     """
-    if 'wallet' not in df.columns:
-        # Try to find wallet column with different names
-        wallet_cols = [col for col in df.columns if 'wallet' in col.lower() or 'address' in col.lower()]
-        if wallet_cols:
-            df = df.rename(columns={wallet_cols[0]: 'wallet'})
-        else:
-            raise ValueError("No wallet/address column found in DataFrame")
+    # Find wallet column regardless of case
+    wallet_col = next((col for col in df.columns if col.lower() in ['wallet', 'address', 'from']), None)
+    if not wallet_col:
+        raise ValueError("No wallet/address column found in DataFrame")
+    
+    # Find other required columns regardless of case
+    value_col = next((col for col in df.columns if col.lower() == 'value'), None)
+    timestamp_col = next((col for col in df.columns if col.lower() in ['timestamp', 'block time', 'human time']), None)
+    tx_hash_col = next((col for col in df.columns if col.lower() in ['tx_hash', 'signature']), None)
+    
+    if not all([value_col, timestamp_col, tx_hash_col]):
+        raise ValueError("Required columns (value, timestamp, tx_hash) not found in DataFrame")
     
     # Group by wallet for analysis
-    wallet_stats = df.groupby('wallet').agg({
-        'value': 'sum',
-        'timestamp': 'min',
+    wallet_stats = df.groupby(wallet_col).agg({
+        value_col: 'sum',
+        timestamp_col: 'min',
         'market_cap': 'mean',
         'early_flag': 'any',
-        'tx_hash': 'count'
+        tx_hash_col: 'count'
     }).round(2)
     
     wallet_stats = wallet_stats.rename(columns={
-        'value': 'total_value',
-        'timestamp': 'first_entry_time',
+        value_col: 'total_value',
+        timestamp_col: 'first_entry_time',
         'market_cap': 'avg_market_cap',
-        'tx_hash': 'tx_count'
+        tx_hash_col: 'tx_count'
     })
     
     # Reset index to make wallet a column
     wallet_stats = wallet_stats.reset_index()
+    wallet_stats = wallet_stats.rename(columns={wallet_col: 'wallet'})
     
     # Early entries: wallets that made at least one early buy
     early_entries = wallet_stats[wallet_stats['early_flag'] == True].copy()
@@ -75,21 +88,22 @@ def analyze_wallets(df: pd.DataFrame, whale_threshold: float) -> Tuple[pd.DataFr
     # Filter for early entries specifically
     early_txs = df[df['early_flag'] == True]
     if not early_txs.empty:
-        early_specific_stats = early_txs.groupby('wallet').agg({
-            'timestamp': 'min',
-            'value': 'sum',
+        early_specific_stats = early_txs.groupby(wallet_col).agg({
+            timestamp_col: 'min',
+            value_col: 'sum',
             'market_cap': 'mean',
-            'tx_hash': 'count'
+            tx_hash_col: 'count'
         }).round(2)
         
         early_specific_stats = early_specific_stats.rename(columns={
-            'timestamp': 'first_tx_time',
-            'value': 'total_value',
+            timestamp_col: 'first_tx_time',
+            value_col: 'total_value',
             'market_cap': 'avg_entry_cap',
-            'tx_hash': 'tx_count'
+            tx_hash_col: 'tx_count'
         })
         
         early_entries = early_specific_stats.reset_index()
+        early_entries = early_entries.rename(columns={wallet_col: 'wallet'})
     
     # Whale wallets: wallets above threshold
     whale_wallets = wallet_stats[wallet_stats['total_value'] > whale_threshold].copy()
@@ -100,9 +114,26 @@ def create_parsed_transactions_report(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create the parsed transactions report.
     """
-    columns_order = ['tx_hash', 'timestamp', 'value', 'amount', 'price', 'market_cap', 'wallet', 'token1', 'token2']
+    # Define column mappings (case-insensitive)
+    column_mappings = {
+        'tx_hash': ['tx_hash', 'signature'],
+        'timestamp': ['timestamp', 'block time', 'human time'],
+        'value': ['value'],
+        'amount': ['amount'],
+        'wallet': ['wallet', 'address', 'from'],
+        'token1': ['token1'],
+        'token2': ['token2']
+    }
     
-    # Only include columns that exist
-    available_columns = [col for col in columns_order if col in df.columns]
+    # Find actual column names in DataFrame
+    available_columns = []
+    for target_col, possible_names in column_mappings.items():
+        found_col = next((col for col in df.columns if col.lower() in [name.lower() for name in possible_names]), None)
+        if found_col:
+            available_columns.append(found_col)
+    
+    # Add calculated columns
+    calculated_columns = ['price', 'market_cap']
+    available_columns.extend([col for col in calculated_columns if col in df.columns])
     
     return df[available_columns].round(6) 
