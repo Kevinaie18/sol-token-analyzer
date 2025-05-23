@@ -43,6 +43,7 @@ def main():
         format="%.0f",
         help="Total token supply for market cap calculation"
     )
+    st.sidebar.caption(f"📝 {total_supply:,.0f}".replace(',', ' '))
     
     # Market cap thresholds
     st.sidebar.subheader("🎯 Thresholds")
@@ -53,6 +54,7 @@ def main():
         format="%.0f",
         help="Market cap below this value flags as early entry"
     )
+    st.sidebar.caption(f"📝 ${early_threshold:,.0f}".replace(',', ' '))
     
     whale_threshold = st.sidebar.number_input(
         "Whale Wallet Threshold ($)", 
@@ -61,6 +63,7 @@ def main():
         format="%.0f",
         help="Total USD spent above this value flags as whale"
     )
+    st.sidebar.caption(f"📝 ${whale_threshold:,.0f}".replace(',', ' '))
     
     # Optional SOL/USD price
     sol_usd_price = st.sidebar.number_input(
@@ -70,6 +73,7 @@ def main():
         format="%.2f",
         help="Fallback price if USD values are missing"
     )
+    st.sidebar.caption(f"📝 {sol_usd_price:,.2f}".replace(',', ' ').replace('.', ','))
     
     # Current token price for P&L analysis
     current_token_price = st.sidebar.number_input(
@@ -79,6 +83,7 @@ def main():
         format="%.6f",
         help="Current token price for unrealized P&L calculation (optional)"
     )
+    st.sidebar.caption(f"📝 ${current_token_price:.6f}".replace('.', ','))
     
     # File upload
     st.header("📁 Upload Transaction Data")
@@ -147,16 +152,16 @@ def main():
             
             with col1:
                 buy_count = len(analyzed_df) if not analyzed_df.empty else 0
-                st.metric("Total Buy Transactions", f"{buy_count:,}")
+                st.metric("Total Buy Transactions", f"{buy_count:,}".replace(',', ' '))
             
             with col2:
                 pnl_wallets = len(pnl_analysis) if not pnl_analysis.empty else 0
-                st.metric("Wallets with Activity", f"{pnl_wallets:,}")
+                st.metric("Wallets with Activity", f"{pnl_wallets:,}".replace(',', ' '))
             
             with col3:
                 if not pnl_analysis.empty:
                     profitable_wallets = len(pnl_analysis[pnl_analysis['is_profitable'] == True])
-                    st.metric("Profitable Wallets", f"{profitable_wallets:,}")
+                    st.metric("Profitable Wallets", f"{profitable_wallets:,}".replace(',', ' '))
                 else:
                     st.metric("Profitable Wallets", "0")
             
@@ -170,7 +175,7 @@ def main():
                             weighted_avg_cap = (analyzed_df['market_cap'] * analyzed_df[value_col]).sum() / total_volume
                         else:
                             weighted_avg_cap = analyzed_df['market_cap'].mean()
-                        st.metric("Avg Market Cap (Weighted)", f"${weighted_avg_cap:,.0f}")
+                        st.metric("Avg Market Cap (Weighted)", f"${weighted_avg_cap:,.0f}".replace(',', ' '))
                     else:
                         st.metric("Avg Market Cap (Weighted)", "N/A")
                 else:
@@ -189,11 +194,11 @@ def main():
                 # Format numeric columns
                 value_col = next((col for col in display_parsed.columns if col.lower() == 'value'), None)
                 if value_col:
-                    display_parsed['USD Value'] = display_parsed[value_col].apply(lambda x: f"${x:,.2f}")
+                    display_parsed['USD Value'] = display_parsed[value_col].apply(lambda x: f"${x:,.2f}".replace(',', ' '))
                     display_parsed = display_parsed.drop(value_col, axis=1)
                 
                 if 'adjusted_token_amount' in display_parsed.columns:
-                    display_parsed['Token Amount'] = display_parsed['adjusted_token_amount'].apply(lambda x: f"{x:,.6f}")
+                    display_parsed['Token Amount'] = display_parsed['adjusted_token_amount'].apply(lambda x: f"{x:,.6f}".replace(',', ' '))
                     display_parsed = display_parsed.drop('adjusted_token_amount', axis=1)
                 
                 if 'price' in display_parsed.columns:
@@ -201,7 +206,7 @@ def main():
                     display_parsed = display_parsed.drop('price', axis=1)
                 
                 if 'market_cap' in display_parsed.columns:
-                    display_parsed['Market Cap'] = display_parsed['market_cap'].apply(lambda x: f"${x:,.0f}")
+                    display_parsed['Market Cap'] = display_parsed['market_cap'].apply(lambda x: f"${x:,.0f}".replace(',', ' '))
                     display_parsed = display_parsed.drop('market_cap', axis=1)
                 
                 # Rename columns for better readability
@@ -261,13 +266,13 @@ def main():
                     
                     # Format numerical values
                     if 'Total USD Spent' in display_early.columns:
-                        display_early['Total USD Spent'] = display_early['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
+                        display_early['Total USD Spent'] = display_early['Total USD Spent'].apply(lambda x: f"${x:,.2f}".replace(',', ' '))
                     if 'Total SOL Spent' in display_early.columns and display_early['Total SOL Spent'].sum() > 0:
-                        display_early['Total SOL Spent'] = display_early['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL")
+                        display_early['Total SOL Spent'] = display_early['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL".replace(',', ' ') if x > 0 else "0 SOL")
                     if 'Avg Entry Market Cap (Weighted)' in display_early.columns:
-                        display_early['Avg Entry Market Cap (Weighted)'] = display_early['Avg Entry Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
+                        display_early['Avg Entry Market Cap (Weighted)'] = display_early['Avg Entry Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}".replace(',', ' '))
                     if 'Transaction Count' in display_early.columns:
-                        display_early['Transaction Count'] = display_early['Transaction Count'].apply(lambda x: f"{x:,}")
+                        display_early['Transaction Count'] = display_early['Transaction Count'].apply(lambda x: f"{x:,}".replace(',', ' '))
                     
                     st.dataframe(display_early, use_container_width=True)
                     
@@ -306,13 +311,13 @@ def main():
                     
                     # Format numerical values
                     if 'Total USD Spent' in display_whales.columns:
-                        display_whales['Total USD Spent'] = display_whales['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
+                        display_whales['Total USD Spent'] = display_whales['Total USD Spent'].apply(lambda x: f"${x:,.2f}".replace(',', ' '))
                     if 'Total SOL Spent' in display_whales.columns and display_whales['Total SOL Spent'].sum() > 0:
-                        display_whales['Total SOL Spent'] = display_whales['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL")
+                        display_whales['Total SOL Spent'] = display_whales['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL".replace(',', ' ') if x > 0 else "0 SOL")
                     if 'Avg Market Cap (Weighted)' in display_whales.columns:
-                        display_whales['Avg Market Cap (Weighted)'] = display_whales['Avg Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
+                        display_whales['Avg Market Cap (Weighted)'] = display_whales['Avg Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}".replace(',', ' '))
                     if 'Transaction Count' in display_whales.columns:
-                        display_whales['Transaction Count'] = display_whales['Transaction Count'].apply(lambda x: f"{x:,}")
+                        display_whales['Transaction Count'] = display_whales['Transaction Count'].apply(lambda x: f"{x:,}".replace(',', ' '))
                     
                     st.dataframe(display_whales, use_container_width=True)
                     
@@ -525,15 +530,15 @@ def main():
                     max_cap = analyzed_df['market_cap'].max()
                     median_cap = analyzed_df['market_cap'].median()
                     
-                    st.write(f"**Min Market Cap:** ${min_cap:,.0f}")
-                    st.write(f"**Max Market Cap:** ${max_cap:,.0f}")
-                    st.write(f"**Median Market Cap:** ${median_cap:,.0f}")
+                    st.write(f"**Min Market Cap:** ${min_cap:,.0f}".replace(',', ' '))
+                    st.write(f"**Max Market Cap:** ${max_cap:,.0f}".replace(',', ' '))
+                    st.write(f"**Median Market Cap:** ${median_cap:,.0f}".replace(',', ' '))
                     
                     # Add percentiles for better insight
                     p25 = analyzed_df['market_cap'].quantile(0.25)
                     p75 = analyzed_df['market_cap'].quantile(0.75)
-                    st.write(f"**25th Percentile:** ${p25:,.0f}")
-                    st.write(f"**75th Percentile:** ${p75:,.0f}")
+                    st.write(f"**25th Percentile:** ${p25:,.0f}".replace(',', ' '))
+                    st.write(f"**75th Percentile:** ${p75:,.0f}".replace(',', ' '))
                 else:
                     st.info("No buy transaction data available for market cap analysis.")
             
@@ -552,17 +557,17 @@ def main():
                         else:
                             unique_wallets = "Unknown"
                         
-                        st.write(f"**Total USD Volume:** ${total_usd_volume:,.2f}")
-                        st.write(f"**Average Transaction:** ${avg_tx_size:,.2f}")
-                        st.write(f"**Unique Wallets:** {unique_wallets:,}")
+                        st.write(f"**Total USD Volume:** ${total_usd_volume:,.2f}".replace(',', ' '))
+                        st.write(f"**Average Transaction:** ${avg_tx_size:,.2f}".replace(',', ' '))
+                        st.write(f"**Unique Wallets:** {unique_wallets:,}".replace(',', ' '))
                         
                         # Show SOL volume if available
                         if 'sol_amount' in analyzed_df.columns:
                             total_sol_volume = analyzed_df['sol_amount'].sum()
                             if total_sol_volume > 0:
                                 avg_sol_tx = analyzed_df['sol_amount'].mean()
-                                st.write(f"**Total SOL Volume:** {total_sol_volume:,.2f} SOL")
-                                st.write(f"**Average SOL per TX:** {avg_sol_tx:,.2f} SOL")
+                                st.write(f"**Total SOL Volume:** {total_sol_volume:,.2f} SOL".replace(',', ' '))
+                                st.write(f"**Average SOL per TX:** {avg_sol_tx:,.2f} SOL".replace(',', ' '))
                 else:
                     st.info("No buy transaction data available for volume analysis.")
             
@@ -608,9 +613,9 @@ def main():
                     if early_count > 0:
                         early_total_usd = early_entries['total_usd_value'].sum() if 'total_usd_value' in early_entries.columns else 0
                         early_avg_usd = early_entries['total_usd_value'].mean() if 'total_usd_value' in early_entries.columns else 0
-                        st.write(f"• Count: {early_count}")
-                        st.write(f"• Total Spent: ${early_total_usd:,.2f}")
-                        st.write(f"• Avg per Wallet: ${early_avg_usd:,.2f}")
+                        st.write(f"• Count: {early_count:,}".replace(',', ' '))
+                        st.write(f"• Total Spent: ${early_total_usd:,.2f}".replace(',', ' '))
+                        st.write(f"• Avg per Wallet: ${early_avg_usd:,.2f}".replace(',', ' '))
                     else:
                         st.write("• No early entries found")
                 
@@ -620,9 +625,9 @@ def main():
                     if whale_count > 0:
                         whale_total_usd = whale_wallets['total_usd_value'].sum() if 'total_usd_value' in whale_wallets.columns else 0
                         whale_avg_usd = whale_wallets['total_usd_value'].mean() if 'total_usd_value' in whale_wallets.columns else 0
-                        st.write(f"• Count: {whale_count}")
-                        st.write(f"• Total Spent: ${whale_total_usd:,.2f}")
-                        st.write(f"• Avg per Whale: ${whale_avg_usd:,.2f}")
+                        st.write(f"• Count: {whale_count:,}".replace(',', ' '))
+                        st.write(f"• Total Spent: ${whale_total_usd:,.2f}".replace(',', ' '))
+                        st.write(f"• Avg per Whale: ${whale_avg_usd:,.2f}".replace(',', ' '))
                     else:
                         st.write("• No whales found")
                 
