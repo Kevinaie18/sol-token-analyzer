@@ -26,14 +26,23 @@ def main():
     # Add deployment health check
     try:
         st.write("🟢 App loaded successfully")
-        st.write(f"📦 Streamlit version: {st.__version__}")
-        st.write(f"🐍 Python modules loaded: utils.parser, report_builder")
     except Exception as e:
         st.error(f"❌ Deployment issue detected: {str(e)}")
         st.stop()
     
     st.title("🚀 Token Momentum Analyzer")
-    st.markdown("**Analyze Solana token transaction data to identify early entries and whale wallets**")
+    st.markdown("""
+**How to Use This Tool**
+1. **Enter the Solana token address** you want to analyze in the sidebar.
+2. **Set the total supply** and adjust the thresholds if needed.
+3. **Upload your Solscan CSV export** (from the token's transaction page).
+4. **View the analysis** in the tabs below:
+   - **Parsed Transactions:** All buy-side transactions  
+   - **Early Entries:** Wallets that bought early  
+   - **Whale Wallets:** Wallets with large total SOL spent  
+   - **P&L Analysis:** Profit & loss per wallet (if data available)
+5. **Download reports** using the download buttons in each tab.
+""")
     
     # Sidebar configuration
     st.sidebar.header("📊 Configuration")
@@ -254,28 +263,24 @@ def main():
                     # Format the dataframe for better display
                     display_early = early_entries.copy()
                     
-                    # Rename columns for better readability - including both USD and SOL
+                    # Remove the Total USD Spent column if it exists
+                    if 'total_usd_value' in display_early.columns:
+                        display_early = display_early.drop('total_usd_value', axis=1)
+                    
+                    # Rename columns for better readability (excluding USD)
                     column_renames_early = {
                         'wallet': 'Wallet Address',
-                        'total_usd_value': 'Total USD Spent',
                         'total_sol_value': 'Total SOL Spent',
                         'first_tx_time': 'First Entry Time',
                         'avg_entry_cap_weighted': 'Avg Entry Market Cap (Weighted)',
                         'tx_count': 'Transaction Count'
                     }
-                    
                     for old_name, new_name in column_renames_early.items():
                         if old_name in display_early.columns:
                             display_early = display_early.rename(columns={old_name: new_name})
                     
                     # Use column configuration for proper sorting
                     column_config = {}
-                    if 'total_usd_value' in early_entries.columns:
-                        column_config['Total USD Spent'] = st.column_config.NumberColumn(
-                            "Total USD Spent",
-                            help="Total USD spent by wallet (sortable)",
-                            format="$%,.2f"
-                        )
                     if 'total_sol_value' in early_entries.columns:
                         column_config['Total SOL Spent'] = st.column_config.NumberColumn(
                             "Total SOL Spent",
@@ -295,11 +300,12 @@ def main():
                             format="%d"
                         )
                     
-                    # Create sortable dataframe with proper column names
+                    # Create sortable dataframe with proper column names (excluding USD)
                     sortable_early = early_entries.copy()
+                    if 'total_usd_value' in sortable_early.columns:
+                        sortable_early = sortable_early.drop('total_usd_value', axis=1)
                     sortable_early = sortable_early.rename(columns={
                         'wallet': 'Wallet Address',
-                        'total_usd_value': 'Total USD Spent',
                         'total_sol_value': 'Total SOL Spent',
                         'first_tx_time': 'First Entry Time',
                         'avg_entry_cap_weighted': 'Avg Entry Market Cap (Weighted)',
@@ -312,9 +318,9 @@ def main():
                         column_config=column_config
                     )
                     
-                    # Download button for early entries
+                    # Download button for early entries (excluding USD)
                     csv_buffer = io.StringIO()
-                    early_entries.to_csv(csv_buffer, index=False)
+                    sortable_early.to_csv(csv_buffer, index=False)
                     st.download_button(
                         label="📥 Download Early Entries CSV",
                         data=csv_buffer.getvalue(),
@@ -331,28 +337,24 @@ def main():
                     # Format the dataframe for better display
                     display_whales = whale_wallets.copy()
                     
-                    # Rename columns for better readability - including both USD and SOL
+                    # Remove the Total USD Spent column if it exists
+                    if 'total_usd_value' in display_whales.columns:
+                        display_whales = display_whales.drop('total_usd_value', axis=1)
+                    
+                    # Rename columns for better readability (excluding USD)
                     column_renames_whales = {
                         'wallet': 'Wallet Address',
-                        'total_usd_value': 'Total USD Spent',
                         'total_sol_value': 'Total SOL Spent',
                         'first_entry_time': 'First Entry Time',
                         'avg_market_cap_weighted': 'Avg Market Cap (Weighted)',
                         'tx_count': 'Transaction Count'
                     }
-                    
                     for old_name, new_name in column_renames_whales.items():
                         if old_name in display_whales.columns:
                             display_whales = display_whales.rename(columns={old_name: new_name})
                     
                     # Use column configuration for proper sorting
                     column_config = {}
-                    if 'total_usd_value' in whale_wallets.columns:
-                        column_config['Total USD Spent'] = st.column_config.NumberColumn(
-                            "Total USD Spent",
-                            help="Total USD spent by wallet (sortable)",
-                            format="$%,.2f"
-                        )
                     if 'total_sol_value' in whale_wallets.columns:
                         column_config['Total SOL Spent'] = st.column_config.NumberColumn(
                             "Total SOL Spent",
@@ -372,11 +374,12 @@ def main():
                             format="%d"
                         )
                     
-                    # Create sortable dataframe with proper column names
+                    # Create sortable dataframe with proper column names (excluding USD)
                     sortable_whales = whale_wallets.copy()
+                    if 'total_usd_value' in sortable_whales.columns:
+                        sortable_whales = sortable_whales.drop('total_usd_value', axis=1)
                     sortable_whales = sortable_whales.rename(columns={
                         'wallet': 'Wallet Address',
-                        'total_usd_value': 'Total USD Spent',
                         'total_sol_value': 'Total SOL Spent',
                         'first_entry_time': 'First Entry Time',
                         'avg_market_cap_weighted': 'Avg Market Cap (Weighted)',
@@ -389,9 +392,9 @@ def main():
                         column_config=column_config
                     )
                     
-                    # Download button for whale wallets
+                    # Download button for whale wallets (excluding USD)
                     csv_buffer = io.StringIO()
-                    whale_wallets.to_csv(csv_buffer, index=False)
+                    sortable_whales.to_csv(csv_buffer, index=False)
                     st.download_button(
                         label="📥 Download Whale Wallets CSV",
                         data=csv_buffer.getvalue(),
@@ -679,17 +682,11 @@ def main():
                     early_count = len(early_entries)
                     st.write("**Early Entry Stats:**")
                     if early_count > 0:
-                        # Show both USD and SOL values
-                        early_total_usd = early_entries['total_usd_value'].sum() if 'total_usd_value' in early_entries.columns else 0
-                        early_avg_usd = early_entries['total_usd_value'].mean() if 'total_usd_value' in early_entries.columns else 0
                         early_total_sol = early_entries['total_sol_value'].sum() if 'total_sol_value' in early_entries.columns else 0
                         early_avg_sol = early_entries['total_sol_value'].mean() if 'total_sol_value' in early_entries.columns else 0
                         st.write(f"• Count: {early_count}")
-                        st.write(f"• Total Spent: ${early_total_usd:,.2f}")
-                        st.write(f"• Avg per Wallet: ${early_avg_usd:,.2f}")
-                        if early_total_sol > 0:
-                            st.write(f"• Total SOL: {early_total_sol:,.2f} SOL".replace(',', ' '))
-                            st.write(f"• Avg SOL: {early_avg_sol:,.2f} SOL".replace(',', ' '))
+                        st.write(f"• Total SOL: {early_total_sol:,.2f} SOL".replace(',', ' '))
+                        st.write(f"• Avg SOL: {early_avg_sol:,.2f} SOL".replace(',', ' '))
                     else:
                         st.write("• No early entries found")
                 
@@ -697,17 +694,11 @@ def main():
                     whale_count = len(whale_wallets)
                     st.write("**Whale Wallet Stats:**")
                     if whale_count > 0:
-                        # Show both USD and SOL values
-                        whale_total_usd = whale_wallets['total_usd_value'].sum() if 'total_usd_value' in whale_wallets.columns else 0
-                        whale_avg_usd = whale_wallets['total_usd_value'].mean() if 'total_usd_value' in whale_wallets.columns else 0
                         whale_total_sol = whale_wallets['total_sol_value'].sum() if 'total_sol_value' in whale_wallets.columns else 0
                         whale_avg_sol = whale_wallets['total_sol_value'].mean() if 'total_sol_value' in whale_wallets.columns else 0
                         st.write(f"• Count: {whale_count}")
-                        st.write(f"• Total Spent: ${whale_total_usd:,.2f}")
-                        st.write(f"• Avg per Whale: ${whale_avg_usd:,.2f}")
-                        if whale_total_sol > 0:
-                            st.write(f"• Total SOL: {whale_total_sol:,.2f} SOL".replace(',', ' '))
-                            st.write(f"• Avg SOL: {whale_avg_sol:,.2f} SOL".replace(',', ' '))
+                        st.write(f"• Total SOL: {whale_total_sol:,.2f} SOL".replace(',', ' '))
+                        st.write(f"• Avg SOL: {whale_avg_sol:,.2f} SOL".replace(',', ' '))
                     else:
                         st.write("• No whales found")
                 
