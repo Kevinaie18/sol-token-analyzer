@@ -2,6 +2,12 @@
 headless = true
 enableCORS = false
 port = 8501
+enableXsrfProtection = false
+enableWebsocketCompression = false
+
+[browser]
+gatherUsageStats = false
+serverAddress = "0.0.0.0"
 
 [theme]
 primaryColor = "#FF6B6B"

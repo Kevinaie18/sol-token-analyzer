@@ -23,6 +23,15 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    # Add deployment health check
+    try:
+        st.write("🟢 App loaded successfully")
+        st.write(f"📦 Streamlit version: {st.__version__}")
+        st.write(f"🐍 Python modules loaded: utils.parser, report_builder")
+    except Exception as e:
+        st.error(f"❌ Deployment issue detected: {str(e)}")
+        st.stop()
+    
     st.title("🚀 Token Momentum Analyzer")
     st.markdown("**Analyze Solana token transaction data to identify early entries and whale wallets**")
     
