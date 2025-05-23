@@ -6,10 +6,12 @@ def filter_buy_transactions(df: pd.DataFrame, token_address: str) -> pd.DataFram
     """
     Filter buy-side transactions where token2 == token_address.
     """
-    if 'token2' not in df.columns:
+    # Find the token2 column regardless of case
+    token2_col = next((col for col in df.columns if col.lower() == 'token2'), None)
+    if not token2_col:
         raise ValueError("token2 column not found in DataFrame")
     
-    buy_df = df[df['token2'] == token_address].copy()
+    buy_df = df[df[token2_col] == token_address].copy()
     return buy_df
 
 def calculate_price_and_market_cap(df: pd.DataFrame, total_supply: float) -> pd.DataFrame:
