@@ -346,7 +346,7 @@ def main():
                     with col_filter2:
                         sort_by = st.selectbox(
                             "Sort by",
-                            options=["Total P&L (USD)", "ROI %", "Realized P&L", "Unrealized P&L", "Total Bought", "Total Sold"],
+                            options=["Total P&L (SOL)", "ROI %", "Realized P&L (SOL)", "Unrealized P&L (SOL)", "Total Bought", "Total Sold"],
                             key="pnl_sort"
                         )
                     
@@ -379,10 +379,10 @@ def main():
                     
                     # Sorting
                     sort_column_map = {
-                        "Total P&L (USD)": "total_pnl_usd",
+                        "Total P&L (SOL)": "total_pnl_sol",
                         "ROI %": "roi_percentage", 
-                        "Realized P&L": "realized_pnl_usd",
-                        "Unrealized P&L": "unrealized_pnl_usd",
+                        "Realized P&L (SOL)": "realized_pnl_sol",
+                        "Unrealized P&L (SOL)": "unrealized_pnl_sol",
                         "Total Bought": "total_bought",
                         "Total Sold": "total_sold"
                     }
@@ -396,20 +396,20 @@ def main():
                         col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
                         
                         with col_metric1:
-                            total_pnl = filtered_pnl['total_pnl_usd'].sum()
-                            st.metric("Total P&L (USD)", f"${total_pnl:,.2f}")
+                            total_pnl_sol = filtered_pnl['total_pnl_sol'].sum()
+                            st.metric("Total P&L (SOL)", f"{total_pnl_sol:.3f} SOL")
                         
                         with col_metric2:
                             avg_roi = filtered_pnl['roi_percentage'].mean()
                             st.metric("Average ROI", f"{avg_roi:.1f}%")
                         
                         with col_metric3:
-                            realized_total = filtered_pnl['realized_pnl_usd'].sum()
-                            st.metric("Total Realized P&L", f"${realized_total:,.2f}")
+                            realized_total_sol = filtered_pnl['realized_pnl_sol'].sum()
+                            st.metric("Total Realized P&L", f"{realized_total_sol:.3f} SOL")
                         
                         with col_metric4:
-                            unrealized_total = filtered_pnl['unrealized_pnl_usd'].sum()
-                            st.metric("Total Unrealized P&L", f"${unrealized_total:,.2f}")
+                            unrealized_total_sol = filtered_pnl['unrealized_pnl_sol'].sum()
+                            st.metric("Total Unrealized P&L", f"{unrealized_total_sol:.3f} SOL")
                         
                         # Format the dataframe for display
                         display_pnl = filtered_pnl.copy()
@@ -419,29 +419,17 @@ def main():
                             lambda x: f"{x[:8]}...{x[-8:]}" if len(x) > 16 else x
                         )
                         
-                        # Format numerical columns with proper styling
+                        # Format only SOL columns with proper styling
                         display_pnl['Total P&L (SOL)'] = display_pnl['total_pnl_sol'].apply(
                             lambda x: f"🟢 {x:.3f}" if x > 0 else f"🔴 {x:.3f}" if x < 0 else f"⚫ {x:.3f}"
                         )
                         
-                        display_pnl['Total P&L (USD)'] = display_pnl['total_pnl_usd'].apply(
-                            lambda x: f"🟢 ${x:,.2f}" if x > 0 else f"🔴 ${x:,.2f}" if x < 0 else f"⚫ ${x:,.2f}"
-                        )
-                        
                         display_pnl['Realized P&L (SOL)'] = display_pnl['realized_pnl_sol'].apply(
-                            lambda x: f"{x:.3f}"
-                        )
-                        
-                        display_pnl['Realized P&L (USD)'] = display_pnl['realized_pnl_usd'].apply(
-                            lambda x: f"${x:,.2f}"
+                            lambda x: f"🟢 {x:.3f}" if x > 0 else f"🔴 {x:.3f}" if x < 0 else f"⚫ {x:.3f}"
                         )
                         
                         display_pnl['Unrealized P&L (SOL)'] = display_pnl['unrealized_pnl_sol'].apply(
-                            lambda x: f"{x:.3f}"
-                        )
-                        
-                        display_pnl['Unrealized P&L (USD)'] = display_pnl['unrealized_pnl_usd'].apply(
-                            lambda x: f"${x:,.2f}"
+                            lambda x: f"🟢 {x:.3f}" if x > 0 else f"🔴 {x:.3f}" if x < 0 else f"⚫ {x:.3f}"
                         )
                         
                         display_pnl['Tokens Bought'] = display_pnl['total_bought'].apply(
@@ -468,11 +456,9 @@ def main():
                             lambda x: "🟡 Open" if x else "⚫ Closed"
                         )
                         
-                        # Select columns for display
+                        # Select columns for display - only SOL P&L columns
                         display_columns = [
-                            'Wallet', 'Total P&L (SOL)', 'Total P&L (USD)', 
-                            'Realized P&L (SOL)', 'Realized P&L (USD)',
-                            'Unrealized P&L (SOL)', 'Unrealized P&L (USD)',
+                            'Wallet', 'Total P&L (SOL)', 'Realized P&L (SOL)', 'Unrealized P&L (SOL)',
                             'Tokens Bought', 'Tokens Sold', 
                             'Avg Buy Price', 'Avg Sell Price', 'ROI %', 'Position'
                         ]
@@ -491,15 +477,15 @@ def main():
                         
                         with col_insight1:
                             st.write("**Top Performers:**")
-                            top_3 = filtered_pnl.nlargest(3, 'total_pnl_usd')
+                            top_3 = filtered_pnl.nlargest(3, 'total_pnl_sol')
                             for idx, row in top_3.iterrows():
-                                st.write(f"• {row['wallet'][:8]}... → ${row['total_pnl_usd']:,.2f}")
+                                st.write(f"• {row['wallet'][:8]}... → {row['total_pnl_sol']:.3f} SOL")
                         
                         with col_insight2:
                             st.write("**Biggest Losses:**")
-                            bottom_3 = filtered_pnl.nsmallest(3, 'total_pnl_usd')
+                            bottom_3 = filtered_pnl.nsmallest(3, 'total_pnl_sol')
                             for idx, row in bottom_3.iterrows():
-                                st.write(f"• {row['wallet'][:8]}... → ${row['total_pnl_usd']:,.2f}")
+                                st.write(f"• {row['wallet'][:8]}... → {row['total_pnl_sol']:.3f} SOL")
                         
                         with col_insight3:
                             st.write("**Position Summary:**")
@@ -593,12 +579,12 @@ def main():
                     st.write(f"• Loss-making Wallets: {total_traders - profitable_count}")
                 
                 with col4:
-                    st.write("**P&L Distribution:**")
-                    total_realized = pnl_analysis['realized_pnl_usd'].sum()
-                    total_unrealized = pnl_analysis['unrealized_pnl_usd'].sum()
-                    st.write(f"• Total Realized: ${total_realized:,.2f}")
-                    st.write(f"• Total Unrealized: ${total_unrealized:,.2f}")
-                    st.write(f"• Combined P&L: ${total_realized + total_unrealized:,.2f}")
+                    st.write("**P&L Distribution (SOL):**")
+                    total_realized = pnl_analysis['realized_pnl_sol'].sum()
+                    total_unrealized = pnl_analysis['unrealized_pnl_sol'].sum()
+                    st.write(f"• Total Realized: {total_realized:.3f} SOL")
+                    st.write(f"• Total Unrealized: {total_unrealized:.3f} SOL")
+                    st.write(f"• Combined P&L: {total_realized + total_unrealized:.3f} SOL")
                 
                 with col5:
                     st.write("**Position Status:**")
