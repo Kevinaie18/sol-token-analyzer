@@ -45,22 +45,29 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Remove completely empty rows
     cleaned_df = cleaned_df.dropna(how='all')
     
-    # Convert numeric columns
+    # Convert numeric columns with case-insensitive matching
     numeric_columns = ['value', 'amount']
-    for col in numeric_columns:
-        if col in cleaned_df.columns:
+    for col_name in numeric_columns:
+        # Find the actual column name regardless of case
+        actual_col = next((col for col in cleaned_df.columns if col.lower() == col_name), None)
+        if actual_col:
             # Remove any non-numeric characters and convert to float
-            cleaned_df[col] = pd.to_numeric(
-                cleaned_df[col].astype(str).str.replace(',', '').str.replace('$', ''), 
+            cleaned_df[actual_col] = pd.to_numeric(
+                cleaned_df[actual_col].astype(str).str.replace(',', '').str.replace('$', ''), 
                 errors='coerce'
             )
     
     # Standardize timestamp if it exists
-    if 'timestamp' in cleaned_df.columns:
-        cleaned_df['timestamp'] = pd.to_datetime(cleaned_df['timestamp'], errors='coerce')
+    timestamp_col = next((col for col in cleaned_df.columns if col.lower() in ['timestamp', 'block time', 'human time']), None)
+    if timestamp_col:
+        cleaned_df[timestamp_col] = pd.to_datetime(cleaned_df[timestamp_col], errors='coerce')
     
-    # Remove rows with critical missing data
-    if 'token2' in cleaned_df.columns and 'value' in cleaned_df.columns and 'amount' in cleaned_df.columns:
-        cleaned_df = cleaned_df.dropna(subset=['token2', 'value', 'amount'])
+    # Remove rows with critical missing data using case-insensitive column names
+    token2_col = next((col for col in cleaned_df.columns if col.lower() == 'token2'), None)
+    value_col = next((col for col in cleaned_df.columns if col.lower() == 'value'), None)
+    amount_col = next((col for col in cleaned_df.columns if col.lower() == 'amount'), None)
+    
+    if all([token2_col, value_col, amount_col]):
+        cleaned_df = cleaned_df.dropna(subset=[token2_col, value_col, amount_col])
     
     return cleaned_df 

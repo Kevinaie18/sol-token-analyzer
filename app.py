@@ -133,9 +133,14 @@ def main():
             
             with col4:
                 # Calculate volume-weighted average market cap for overall summary
-                total_volume = analyzed_df['value'].sum()
+                value_col = next((col for col in analyzed_df.columns if col.lower() == 'value'), None)
+                if not value_col:
+                    st.error("Value column not found in the data")
+                    return
+                    
+                total_volume = analyzed_df[value_col].sum()
                 if total_volume > 0:
-                    weighted_avg_cap = (analyzed_df['market_cap'] * analyzed_df['value']).sum() / total_volume
+                    weighted_avg_cap = (analyzed_df['market_cap'] * analyzed_df[value_col]).sum() / total_volume
                 else:
                     weighted_avg_cap = analyzed_df['market_cap'].mean()
                 st.metric("Avg Market Cap (Weighted)", f"${weighted_avg_cap:,.0f}")
@@ -151,9 +156,10 @@ def main():
                 display_parsed = parsed_transactions.copy()
                 
                 # Format numeric columns
-                if 'value' in display_parsed.columns:
-                    display_parsed['USD Value'] = display_parsed['value'].apply(lambda x: f"${x:,.2f}")
-                    display_parsed = display_parsed.drop('value', axis=1)
+                value_col = next((col for col in display_parsed.columns if col.lower() == 'value'), None)
+                if value_col:
+                    display_parsed['USD Value'] = display_parsed[value_col].apply(lambda x: f"${x:,.2f}")
+                    display_parsed = display_parsed.drop(value_col, axis=1)
                 
                 if 'adjusted_token_amount' in display_parsed.columns:
                     display_parsed['Token Amount'] = display_parsed['adjusted_token_amount'].apply(lambda x: f"{x:,.6f}")
@@ -316,8 +322,13 @@ def main():
             with col2:
                 st.subheader("Transaction Volume")
                 if len(analyzed_df) > 0:
-                    total_usd_volume = analyzed_df['value'].sum()
-                    avg_tx_size = analyzed_df['value'].mean()
+                    value_col = next((col for col in analyzed_df.columns if col.lower() == 'value'), None)
+                    if not value_col:
+                        st.error("Value column not found in the data")
+                        return
+                        
+                    total_usd_volume = analyzed_df[value_col].sum()
+                    avg_tx_size = analyzed_df[value_col].mean()
                     
                     # Find wallet column properly
                     wallet_col = next((col for col in analyzed_df.columns if col.lower() in ['wallet', 'address', 'from']), None)
@@ -328,7 +339,7 @@ def main():
                     
                     st.write(f"**Total USD Volume:** ${total_usd_volume:,.2f}")
                     st.write(f"**Average Transaction:** ${avg_tx_size:,.2f}")
-                    st.write(f"**Unique Wallets:** {unique_wallets:,}" if isinstance(unique_wallets, int) else f"**Unique Wallets:** {unique_wallets}")
+                    st.write(f"**Unique Wallets:** {unique_wallets:,}")
                     
                     # Show SOL volume if available
                     if 'sol_amount' in analyzed_df.columns:
