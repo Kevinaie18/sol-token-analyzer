@@ -140,6 +140,7 @@ def main():
             
             with tab1:
                 st.subheader("All Buy Transactions")
+                st.info("💡 **Token amounts are automatically adjusted for decimals** - Raw amounts from the CSV are converted using the TokenDecimals column for accurate calculations.")
                 st.dataframe(parsed_transactions, use_container_width=True)
                 
                 # Download button for parsed transactions

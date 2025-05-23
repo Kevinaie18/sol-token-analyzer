@@ -22,13 +22,25 @@ def calculate_price_and_market_cap(df: pd.DataFrame, total_supply: float) -> pd.
     
     # Find value and amount columns regardless of case
     value_col = next((col for col in df.columns if col.lower() == 'value'), None)
-    amount_col = next((col for col in df.columns if col.lower() == 'amount'), None)
+    # For token2 transactions, we need amount2
+    amount_col = next((col for col in df.columns if col.lower() in ['amount2', 'amount']), None)
     
-    if not value_col or not amount_col:
-        raise ValueError("value or amount column not found in DataFrame")
+    if not value_col:
+        raise ValueError("value column not found in DataFrame")
+    if not amount_col:
+        raise ValueError("amount2 or amount column not found in DataFrame")
     
-    # Calculate price = value / amount
-    result_df['price'] = result_df[value_col] / result_df[amount_col]
+    # Calculate price = value / amount (considering decimals)
+    # First, we need to check if there's a decimal column for proper calculation
+    decimal_col = next((col for col in df.columns if col.lower() in ['tokendecimals2', 'decimals2', 'decimals']), None)
+    
+    if decimal_col:
+        # Adjust amount for decimals
+        adjusted_amount = result_df[amount_col] / (10 ** result_df[decimal_col])
+        result_df['price'] = result_df[value_col] / adjusted_amount
+    else:
+        # Assume the amount is already in the correct decimal format
+        result_df['price'] = result_df[value_col] / result_df[amount_col]
     
     # Calculate market cap = price * total_supply
     result_df['market_cap'] = result_df['price'] * total_supply
@@ -114,13 +126,24 @@ def create_parsed_transactions_report(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create the parsed transactions report.
     """
+    result_df = df.copy()
+    
+    # Add adjusted token amount column (accounting for decimals)
+    amount_col = next((col for col in df.columns if col.lower() in ['amount2', 'amount']), None)
+    decimal_col = next((col for col in df.columns if col.lower() in ['tokendecimals2', 'decimals2', 'decimals']), None)
+    
+    if amount_col and decimal_col:
+        result_df['adjusted_token_amount'] = result_df[amount_col] / (10 ** result_df[decimal_col])
+    
     # Define column mappings (case-insensitive)
     column_mappings = {
         'tx_hash': ['tx_hash', 'signature'],
         'timestamp': ['timestamp', 'block time', 'human time'],
-        'value': ['value'],
-        'amount': ['amount'],
         'wallet': ['wallet', 'address', 'from'],
+        'action': ['action'],
+        'value': ['value'],
+        'amount_raw': ['amount2', 'amount'],
+        'decimals': ['tokendecimals2', 'decimals2', 'decimals'],
         'token1': ['token1'],
         'token2': ['token2']
     }
@@ -132,8 +155,8 @@ def create_parsed_transactions_report(df: pd.DataFrame) -> pd.DataFrame:
         if found_col:
             available_columns.append(found_col)
     
-    # Add calculated columns
-    calculated_columns = ['price', 'market_cap']
-    available_columns.extend([col for col in calculated_columns if col in df.columns])
+    # Add calculated columns in preferred order
+    calculated_columns = ['adjusted_token_amount', 'price', 'market_cap', 'early_flag']
+    available_columns.extend([col for col in calculated_columns if col in result_df.columns])
     
-    return df[available_columns].round(6) 
+    return result_df[available_columns].round(6) 
