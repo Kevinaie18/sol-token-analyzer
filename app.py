@@ -397,7 +397,7 @@ def main():
                         
                         with col_metric1:
                             total_pnl_sol = filtered_pnl['total_pnl_sol'].sum()
-                            st.metric("Total P&L (SOL)", f"{total_pnl_sol:.3f} SOL")
+                            st.metric("Total P&L (SOL)", f"{total_pnl_sol:,.3f} SOL")
                         
                         with col_metric2:
                             avg_roi = filtered_pnl['roi_percentage'].mean()
@@ -405,31 +405,29 @@ def main():
                         
                         with col_metric3:
                             realized_total_sol = filtered_pnl['realized_pnl_sol'].sum()
-                            st.metric("Total Realized P&L", f"{realized_total_sol:.3f} SOL")
+                            st.metric("Total Realized P&L", f"{realized_total_sol:,.3f} SOL")
                         
                         with col_metric4:
                             unrealized_total_sol = filtered_pnl['unrealized_pnl_sol'].sum()
-                            st.metric("Total Unrealized P&L", f"{unrealized_total_sol:.3f} SOL")
+                            st.metric("Total Unrealized P&L", f"{unrealized_total_sol:,.3f} SOL")
                         
                         # Format the dataframe for display
                         display_pnl = filtered_pnl.copy()
                         
-                        # Truncate wallet addresses for better display
-                        display_pnl['Wallet'] = display_pnl['wallet'].apply(
-                            lambda x: f"{x[:8]}...{x[-8:]}" if len(x) > 16 else x
-                        )
+                        # Show full wallet addresses for easy copy/paste
+                        display_pnl['Wallet'] = display_pnl['wallet']
                         
-                        # Format only SOL columns with proper styling
+                        # Format only SOL columns with proper styling and thousand separators
                         display_pnl['Total P&L (SOL)'] = display_pnl['total_pnl_sol'].apply(
-                            lambda x: f"🟢 {x:.3f}" if x > 0 else f"🔴 {x:.3f}" if x < 0 else f"⚫ {x:.3f}"
+                            lambda x: f"🟢 {x:,.3f}" if x > 0 else f"🔴 {x:,.3f}" if x < 0 else f"⚫ {x:,.3f}"
                         )
                         
                         display_pnl['Realized P&L (SOL)'] = display_pnl['realized_pnl_sol'].apply(
-                            lambda x: f"🟢 {x:.3f}" if x > 0 else f"🔴 {x:.3f}" if x < 0 else f"⚫ {x:.3f}"
+                            lambda x: f"🟢 {x:,.3f}" if x > 0 else f"🔴 {x:,.3f}" if x < 0 else f"⚫ {x:,.3f}"
                         )
                         
                         display_pnl['Unrealized P&L (SOL)'] = display_pnl['unrealized_pnl_sol'].apply(
-                            lambda x: f"🟢 {x:.3f}" if x > 0 else f"🔴 {x:.3f}" if x < 0 else f"⚫ {x:.3f}"
+                            lambda x: f"🟢 {x:,.3f}" if x > 0 else f"🔴 {x:,.3f}" if x < 0 else f"⚫ {x:,.3f}"
                         )
                         
                         display_pnl['Tokens Bought'] = display_pnl['total_bought'].apply(
@@ -479,13 +477,17 @@ def main():
                             st.write("**Top Performers:**")
                             top_3 = filtered_pnl.nlargest(3, 'total_pnl_sol')
                             for idx, row in top_3.iterrows():
-                                st.write(f"• {row['wallet'][:8]}... → {row['total_pnl_sol']:.3f} SOL")
+                                st.code(f"{row['wallet']}")
+                                st.write(f"P&L: {row['total_pnl_sol']:,.3f} SOL")
+                                st.write("---")
                         
                         with col_insight2:
                             st.write("**Biggest Losses:**")
                             bottom_3 = filtered_pnl.nsmallest(3, 'total_pnl_sol')
                             for idx, row in bottom_3.iterrows():
-                                st.write(f"• {row['wallet'][:8]}... → {row['total_pnl_sol']:.3f} SOL")
+                                st.code(f"{row['wallet']}")
+                                st.write(f"P&L: {row['total_pnl_sol']:,.3f} SOL")
+                                st.write("---")
                         
                         with col_insight3:
                             st.write("**Position Summary:**")
@@ -582,9 +584,9 @@ def main():
                     st.write("**P&L Distribution (SOL):**")
                     total_realized = pnl_analysis['realized_pnl_sol'].sum()
                     total_unrealized = pnl_analysis['unrealized_pnl_sol'].sum()
-                    st.write(f"• Total Realized: {total_realized:.3f} SOL")
-                    st.write(f"• Total Unrealized: {total_unrealized:.3f} SOL")
-                    st.write(f"• Combined P&L: {total_realized + total_unrealized:.3f} SOL")
+                    st.write(f"• Total Realized: {total_realized:,.3f} SOL")
+                    st.write(f"• Total Unrealized: {total_unrealized:,.3f} SOL")
+                    st.write(f"• Combined P&L: {total_realized + total_unrealized:,.3f} SOL")
                 
                 with col5:
                     st.write("**Position Status:**")
