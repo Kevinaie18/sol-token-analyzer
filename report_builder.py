@@ -26,8 +26,12 @@ def calculate_price_and_market_cap(df: pd.DataFrame, total_supply: float) -> pd.
     amount_col = next((col for col in df.columns if col.lower() in ['amount2', 'amount']), None)
     
     if not value_col:
+        # Print available columns for debugging
+        print(f"Available columns: {list(df.columns)}")
         raise ValueError("value column not found in DataFrame")
     if not amount_col:
+        # Print available columns for debugging
+        print(f"Available columns: {list(df.columns)}")
         raise ValueError("amount2 or amount column not found in DataFrame")
     
     # Calculate price = value / amount (considering decimals)
@@ -200,4 +204,130 @@ def create_parsed_transactions_report(df: pd.DataFrame) -> pd.DataFrame:
     calculated_columns = ['adjusted_token_amount', 'price', 'market_cap', 'early_flag']
     available_columns.extend([col for col in calculated_columns if col in result_df.columns])
     
-    return result_df[available_columns].round(6) 
+    return result_df[available_columns].round(6)
+
+def analyze_pnl(df: pd.DataFrame, token_address: str, current_price: float = None, sol_usd_price: float = 100.0) -> pd.DataFrame:
+    """
+    Analyze profit and loss for each wallet by tracking buy vs sell transactions.
+    
+    Buy transactions: tracked token is token2 (incoming)
+    Sell transactions: tracked token is token1 (outgoing)
+    
+    Returns DataFrame with P&L analysis per wallet.
+    """
+    # Find required columns
+    wallet_col = next((col for col in df.columns if col.lower() in ['wallet', 'address', 'from']), None)
+    value_col = next((col for col in df.columns if col.lower() == 'value'), None)
+    token1_col = next((col for col in df.columns if col.lower() == 'token1'), None)
+    token2_col = next((col for col in df.columns if col.lower() == 'token2'), None)
+    amount1_col = next((col for col in df.columns if col.lower() == 'amount1'), None)
+    amount2_col = next((col for col in df.columns if col.lower() == 'amount2'), None)
+    decimals1_col = next((col for col in df.columns if col.lower() == 'tokendecimals1'), None)
+    decimals2_col = next((col for col in df.columns if col.lower() == 'tokendecimals2'), None)
+    
+    if not all([wallet_col, value_col, token1_col, token2_col, amount1_col, amount2_col]):
+        raise ValueError("Required columns for P&L analysis not found")
+    
+    # Separate buy and sell transactions
+    buy_txs = df[df[token2_col] == token_address].copy()  # Buying tracked token
+    sell_txs = df[df[token1_col] == token_address].copy()  # Selling tracked token
+    
+    # Calculate adjusted amounts for decimals
+    if decimals2_col and not buy_txs.empty:
+        buy_txs['adjusted_token_amount'] = buy_txs[amount2_col] / (10 ** buy_txs[decimals2_col])
+    elif not buy_txs.empty:
+        buy_txs['adjusted_token_amount'] = buy_txs[amount2_col]
+    
+    if decimals1_col and not sell_txs.empty:
+        sell_txs['adjusted_token_amount'] = sell_txs[amount1_col] / (10 ** sell_txs[decimals1_col])
+    elif not sell_txs.empty:
+        sell_txs['adjusted_token_amount'] = sell_txs[amount1_col]
+    
+    # Calculate prices (USD per token)
+    if not buy_txs.empty:
+        buy_txs['price_usd'] = buy_txs[value_col] / buy_txs['adjusted_token_amount']
+    if not sell_txs.empty:
+        sell_txs['price_usd'] = sell_txs[value_col] / sell_txs['adjusted_token_amount']
+    
+    # Get all unique wallets
+    all_wallets = set()
+    if not buy_txs.empty:
+        all_wallets.update(buy_txs[wallet_col].unique())
+    if not sell_txs.empty:
+        all_wallets.update(sell_txs[wallet_col].unique())
+    
+    pnl_results = []
+    
+    for wallet in all_wallets:
+        # Get wallet's buy and sell transactions
+        wallet_buys = buy_txs[buy_txs[wallet_col] == wallet] if not buy_txs.empty else pd.DataFrame()
+        wallet_sells = sell_txs[sell_txs[wallet_col] == wallet] if not sell_txs.empty else pd.DataFrame()
+        
+        # Calculate buy metrics
+        if not wallet_buys.empty:
+            total_bought = wallet_buys['adjusted_token_amount'].sum()
+            total_buy_value = wallet_buys[value_col].sum()
+            avg_buy_price = total_buy_value / total_bought if total_bought > 0 else 0
+        else:
+            total_bought = 0
+            total_buy_value = 0
+            avg_buy_price = 0
+        
+        # Calculate sell metrics  
+        if not wallet_sells.empty:
+            total_sold = wallet_sells['adjusted_token_amount'].sum()
+            total_sell_value = wallet_sells[value_col].sum()
+            avg_sell_price = total_sell_value / total_sold if total_sold > 0 else 0
+        else:
+            total_sold = 0
+            total_sell_value = 0
+            avg_sell_price = 0
+        
+        # Calculate P&L
+        # Realized P&L: from tokens that were both bought and sold
+        tokens_traded = min(total_bought, total_sold)
+        realized_pnl_usd = tokens_traded * (avg_sell_price - avg_buy_price) if tokens_traded > 0 else 0
+        
+        # Unrealized P&L: from remaining position
+        remaining_tokens = total_bought - total_sold
+        if remaining_tokens > 0 and current_price and avg_buy_price > 0:
+            unrealized_pnl_usd = remaining_tokens * (current_price - avg_buy_price)
+        else:
+            unrealized_pnl_usd = 0
+        
+        # Total P&L
+        total_pnl_usd = realized_pnl_usd + unrealized_pnl_usd
+        
+        # ROI calculation
+        if total_buy_value > 0:
+            roi_percentage = (total_pnl_usd / total_buy_value) * 100
+        else:
+            roi_percentage = 0
+        
+        # Convert to SOL (assuming $100 SOL price as default, can be updated)
+        sol_price = sol_usd_price  # This could be made configurable
+        realized_pnl_sol = realized_pnl_usd / sol_price
+        unrealized_pnl_sol = unrealized_pnl_usd / sol_price
+        total_pnl_sol = total_pnl_usd / sol_price
+        
+        pnl_results.append({
+            'wallet': wallet,
+            'total_bought': round(total_bought, 6),
+            'total_sold': round(total_sold, 6),
+            'remaining_tokens': round(remaining_tokens, 6),
+            'avg_buy_price_usd': round(avg_buy_price, 6),
+            'avg_sell_price_usd': round(avg_sell_price, 6),
+            'total_buy_value_usd': round(total_buy_value, 2),
+            'total_sell_value_usd': round(total_sell_value, 2),
+            'realized_pnl_usd': round(realized_pnl_usd, 2),
+            'unrealized_pnl_usd': round(unrealized_pnl_usd, 2),
+            'total_pnl_usd': round(total_pnl_usd, 2),
+            'realized_pnl_sol': round(realized_pnl_sol, 3),
+            'unrealized_pnl_sol': round(unrealized_pnl_sol, 3),
+            'total_pnl_sol': round(total_pnl_sol, 3),
+            'roi_percentage': round(roi_percentage, 2),
+            'is_profitable': total_pnl_usd > 0,
+            'has_position': remaining_tokens > 0
+        })
+    
+    return pd.DataFrame(pnl_results) 

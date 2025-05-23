@@ -11,7 +11,8 @@ from report_builder import (
     calculate_price_and_market_cap, 
     classify_early_entries,
     analyze_wallets,
-    create_parsed_transactions_report
+    create_parsed_transactions_report,
+    analyze_pnl
 )
 
 def main():
@@ -70,6 +71,15 @@ def main():
         help="Fallback price if USD values are missing"
     )
     
+    # Current token price for P&L analysis
+    current_token_price = st.sidebar.number_input(
+        "Current Token Price (USD)", 
+        value=0.0,
+        min_value=0.0,
+        format="%.6f",
+        help="Current token price for unrealized P&L calculation (optional)"
+    )
+    
     # File upload
     st.header("📁 Upload Transaction Data")
     uploaded_file = st.file_uploader(
@@ -94,25 +104,40 @@ def main():
             
             # Process data
             with st.spinner("Analyzing transactions..."):
-                # Filter buy transactions
+                # Filter buy transactions for original analysis
                 buy_df = filter_buy_transactions(cleaned_df, token_address)
                 
                 if len(buy_df) == 0:
                     st.warning(f"⚠️ No buy transactions found for token address: {token_address}")
                     st.info("Make sure the token address is correct and exists in the 'token2' column")
-                    return
+                    # Still proceed with P&L analysis as it includes both buys and sells
                 
-                # Calculate price and market cap
-                analyzed_df = calculate_price_and_market_cap(buy_df, total_supply)
+                # P&L Analysis on all transactions (includes both buys and sells)
+                pnl_analysis = analyze_pnl(
+                    cleaned_df, 
+                    token_address, 
+                    current_token_price if current_token_price > 0 else None,
+                    sol_usd_price
+                )
                 
-                # Classify early entries
-                analyzed_df = classify_early_entries(analyzed_df, early_threshold)
-                
-                # Analyze wallets
-                early_entries, whale_wallets = analyze_wallets(analyzed_df, whale_threshold)
-                
-                # Create final reports
-                parsed_transactions = create_parsed_transactions_report(analyzed_df)
+                if len(buy_df) > 0:
+                    # Calculate price and market cap for buy transactions
+                    analyzed_df = calculate_price_and_market_cap(buy_df, total_supply)
+                    
+                    # Classify early entries
+                    analyzed_df = classify_early_entries(analyzed_df, early_threshold)
+                    
+                    # Analyze wallets
+                    early_entries, whale_wallets = analyze_wallets(analyzed_df, whale_threshold)
+                    
+                    # Create final reports
+                    parsed_transactions = create_parsed_transactions_report(analyzed_df)
+                else:
+                    # Create empty dataframes if no buy transactions
+                    analyzed_df = pd.DataFrame()
+                    early_entries = pd.DataFrame()
+                    whale_wallets = pd.DataFrame()
+                    parsed_transactions = pd.DataFrame()
             
             # Display results
             st.header("📊 Analysis Results")
@@ -121,32 +146,38 @@ def main():
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Buy Transactions", f"{len(analyzed_df):,}")
+                buy_count = len(analyzed_df) if not analyzed_df.empty else 0
+                st.metric("Total Buy Transactions", f"{buy_count:,}")
             
             with col2:
-                early_count = len(early_entries)
-                st.metric("Early Entry Wallets", f"{early_count:,}")
+                pnl_wallets = len(pnl_analysis) if not pnl_analysis.empty else 0
+                st.metric("Wallets with Activity", f"{pnl_wallets:,}")
             
             with col3:
-                whale_count = len(whale_wallets)
-                st.metric("Whale Wallets", f"{whale_count:,}")
+                if not pnl_analysis.empty:
+                    profitable_wallets = len(pnl_analysis[pnl_analysis['is_profitable'] == True])
+                    st.metric("Profitable Wallets", f"{profitable_wallets:,}")
+                else:
+                    st.metric("Profitable Wallets", "0")
             
             with col4:
-                # Calculate volume-weighted average market cap for overall summary
-                value_col = next((col for col in analyzed_df.columns if col.lower() == 'value'), None)
-                if not value_col:
-                    st.error("Value column not found in the data")
-                    return
-                    
-                total_volume = analyzed_df[value_col].sum()
-                if total_volume > 0:
-                    weighted_avg_cap = (analyzed_df['market_cap'] * analyzed_df[value_col]).sum() / total_volume
+                if not analyzed_df.empty:
+                    # Calculate volume-weighted average market cap for overall summary
+                    value_col = next((col for col in analyzed_df.columns if col.lower() == 'value'), None)
+                    if value_col:
+                        total_volume = analyzed_df[value_col].sum()
+                        if total_volume > 0:
+                            weighted_avg_cap = (analyzed_df['market_cap'] * analyzed_df[value_col]).sum() / total_volume
+                        else:
+                            weighted_avg_cap = analyzed_df['market_cap'].mean()
+                        st.metric("Avg Market Cap (Weighted)", f"${weighted_avg_cap:,.0f}")
+                    else:
+                        st.metric("Avg Market Cap (Weighted)", "N/A")
                 else:
-                    weighted_avg_cap = analyzed_df['market_cap'].mean()
-                st.metric("Avg Market Cap (Weighted)", f"${weighted_avg_cap:,.0f}")
+                    st.metric("Avg Market Cap (Weighted)", "N/A")
             
             # Tabs for different views
-            tab1, tab2, tab3 = st.tabs(["📈 Parsed Transactions", "🎯 Early Entries", "🐋 Whale Wallets"])
+            tab1, tab2, tab3, tab4 = st.tabs(["📈 Parsed Transactions", "🎯 Early Entries", "🐋 Whale Wallets", "💰 P&L Analysis"])
             
             with tab1:
                 st.subheader("All Buy Transactions")
@@ -297,6 +328,203 @@ def main():
                 else:
                     st.info("No whale wallets found with current threshold.")
             
+            with tab4:
+                st.subheader("💰 P&L Analysis")
+                st.info("💡 **Comprehensive P&L tracking** - Analyzes buy (token2) vs sell (token1) transactions to calculate realized and unrealized profit/loss")
+                
+                if len(pnl_analysis) > 0:
+                    # Create filtering and sorting controls
+                    col_filter1, col_filter2, col_filter3 = st.columns(3)
+                    
+                    with col_filter1:
+                        profit_filter = st.selectbox(
+                            "Filter by P&L",
+                            options=["All Wallets", "Profitable Only", "Loss-making Only"],
+                            key="pnl_filter"
+                        )
+                    
+                    with col_filter2:
+                        sort_by = st.selectbox(
+                            "Sort by",
+                            options=["Total P&L (USD)", "ROI %", "Realized P&L", "Unrealized P&L", "Total Bought", "Total Sold"],
+                            key="pnl_sort"
+                        )
+                    
+                    with col_filter3:
+                        sort_order = st.selectbox(
+                            "Sort Order",
+                            options=["Descending", "Ascending"],
+                            key="pnl_order"
+                        )
+                    
+                    # Search functionality
+                    search_wallet = st.text_input(
+                        "🔍 Search by wallet address",
+                        placeholder="Enter wallet address...",
+                        key="wallet_search"
+                    )
+                    
+                    # Apply filters
+                    filtered_pnl = pnl_analysis.copy()
+                    
+                    # Profit filter
+                    if profit_filter == "Profitable Only":
+                        filtered_pnl = filtered_pnl[filtered_pnl['is_profitable'] == True]
+                    elif profit_filter == "Loss-making Only":
+                        filtered_pnl = filtered_pnl[filtered_pnl['is_profitable'] == False]
+                    
+                    # Search filter
+                    if search_wallet:
+                        filtered_pnl = filtered_pnl[filtered_pnl['wallet'].str.contains(search_wallet, case=False, na=False)]
+                    
+                    # Sorting
+                    sort_column_map = {
+                        "Total P&L (USD)": "total_pnl_usd",
+                        "ROI %": "roi_percentage", 
+                        "Realized P&L": "realized_pnl_usd",
+                        "Unrealized P&L": "unrealized_pnl_usd",
+                        "Total Bought": "total_bought",
+                        "Total Sold": "total_sold"
+                    }
+                    
+                    sort_col = sort_column_map[sort_by]
+                    ascending = sort_order == "Ascending"
+                    filtered_pnl = filtered_pnl.sort_values(by=sort_col, ascending=ascending)
+                    
+                    if len(filtered_pnl) > 0:
+                        # P&L Summary metrics
+                        col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+                        
+                        with col_metric1:
+                            total_pnl = filtered_pnl['total_pnl_usd'].sum()
+                            st.metric("Total P&L (USD)", f"${total_pnl:,.2f}")
+                        
+                        with col_metric2:
+                            avg_roi = filtered_pnl['roi_percentage'].mean()
+                            st.metric("Average ROI", f"{avg_roi:.1f}%")
+                        
+                        with col_metric3:
+                            realized_total = filtered_pnl['realized_pnl_usd'].sum()
+                            st.metric("Total Realized P&L", f"${realized_total:,.2f}")
+                        
+                        with col_metric4:
+                            unrealized_total = filtered_pnl['unrealized_pnl_usd'].sum()
+                            st.metric("Total Unrealized P&L", f"${unrealized_total:,.2f}")
+                        
+                        # Format the dataframe for display
+                        display_pnl = filtered_pnl.copy()
+                        
+                        # Truncate wallet addresses for better display
+                        display_pnl['Wallet'] = display_pnl['wallet'].apply(
+                            lambda x: f"{x[:8]}...{x[-8:]}" if len(x) > 16 else x
+                        )
+                        
+                        # Format numerical columns with proper styling
+                        display_pnl['Total P&L (SOL)'] = display_pnl['total_pnl_sol'].apply(
+                            lambda x: f"🟢 {x:.3f}" if x > 0 else f"🔴 {x:.3f}" if x < 0 else f"⚫ {x:.3f}"
+                        )
+                        
+                        display_pnl['Total P&L (USD)'] = display_pnl['total_pnl_usd'].apply(
+                            lambda x: f"🟢 ${x:,.2f}" if x > 0 else f"🔴 ${x:,.2f}" if x < 0 else f"⚫ ${x:,.2f}"
+                        )
+                        
+                        display_pnl['Realized P&L (SOL)'] = display_pnl['realized_pnl_sol'].apply(
+                            lambda x: f"{x:.3f}"
+                        )
+                        
+                        display_pnl['Realized P&L (USD)'] = display_pnl['realized_pnl_usd'].apply(
+                            lambda x: f"${x:,.2f}"
+                        )
+                        
+                        display_pnl['Unrealized P&L (SOL)'] = display_pnl['unrealized_pnl_sol'].apply(
+                            lambda x: f"{x:.3f}"
+                        )
+                        
+                        display_pnl['Unrealized P&L (USD)'] = display_pnl['unrealized_pnl_usd'].apply(
+                            lambda x: f"${x:,.2f}"
+                        )
+                        
+                        display_pnl['Tokens Bought'] = display_pnl['total_bought'].apply(
+                            lambda x: f"{x:,.6f}"
+                        )
+                        
+                        display_pnl['Tokens Sold'] = display_pnl['total_sold'].apply(
+                            lambda x: f"{x:,.6f}"
+                        )
+                        
+                        display_pnl['Avg Buy Price'] = display_pnl['avg_buy_price_usd'].apply(
+                            lambda x: f"${x:.6f}" if x > 0 else "N/A"
+                        )
+                        
+                        display_pnl['Avg Sell Price'] = display_pnl['avg_sell_price_usd'].apply(
+                            lambda x: f"${x:.6f}" if x > 0 else "N/A"
+                        )
+                        
+                        display_pnl['ROI %'] = display_pnl['roi_percentage'].apply(
+                            lambda x: f"🟢 {x:.1f}%" if x > 0 else f"🔴 {x:.1f}%" if x < 0 else f"⚫ {x:.1f}%"
+                        )
+                        
+                        display_pnl['Position'] = display_pnl['has_position'].apply(
+                            lambda x: "🟡 Open" if x else "⚫ Closed"
+                        )
+                        
+                        # Select columns for display
+                        display_columns = [
+                            'Wallet', 'Total P&L (SOL)', 'Total P&L (USD)', 
+                            'Realized P&L (SOL)', 'Realized P&L (USD)',
+                            'Unrealized P&L (SOL)', 'Unrealized P&L (USD)',
+                            'Tokens Bought', 'Tokens Sold', 
+                            'Avg Buy Price', 'Avg Sell Price', 'ROI %', 'Position'
+                        ]
+                        
+                        # Display the formatted table
+                        st.dataframe(
+                            display_pnl[display_columns], 
+                            use_container_width=True,
+                            height=400
+                        )
+                        
+                        # Additional insights
+                        st.subheader("📊 P&L Insights")
+                        
+                        col_insight1, col_insight2, col_insight3 = st.columns(3)
+                        
+                        with col_insight1:
+                            st.write("**Top Performers:**")
+                            top_3 = filtered_pnl.nlargest(3, 'total_pnl_usd')
+                            for idx, row in top_3.iterrows():
+                                st.write(f"• {row['wallet'][:8]}... → ${row['total_pnl_usd']:,.2f}")
+                        
+                        with col_insight2:
+                            st.write("**Biggest Losses:**")
+                            bottom_3 = filtered_pnl.nsmallest(3, 'total_pnl_usd')
+                            for idx, row in bottom_3.iterrows():
+                                st.write(f"• {row['wallet'][:8]}... → ${row['total_pnl_usd']:,.2f}")
+                        
+                        with col_insight3:
+                            st.write("**Position Summary:**")
+                            open_positions = len(filtered_pnl[filtered_pnl['has_position'] == True])
+                            closed_positions = len(filtered_pnl[filtered_pnl['has_position'] == False])
+                            st.write(f"• Open: {open_positions}")
+                            st.write(f"• Closed: {closed_positions}")
+                            st.write(f"• Total: {len(filtered_pnl)}")
+                        
+                        # Download button
+                        csv_buffer = io.StringIO()
+                        filtered_pnl.to_csv(csv_buffer, index=False)
+                        st.download_button(
+                            label="📥 Download P&L Analysis CSV",
+                            data=csv_buffer.getvalue(),
+                            file_name=f"pnl_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv"
+                        )
+                        
+                    else:
+                        st.info("No results found with current filters.")
+                
+                else:
+                    st.info("No transaction data available for P&L analysis. Please ensure your CSV contains both buy and sell transactions.")
+            
             # Analysis insights
             st.header("💡 Key Insights")
             
@@ -304,7 +532,7 @@ def main():
             
             with col1:
                 st.subheader("Market Cap Distribution")
-                if len(analyzed_df) > 0:
+                if not analyzed_df.empty:
                     min_cap = analyzed_df['market_cap'].min()
                     max_cap = analyzed_df['market_cap'].max()
                     median_cap = analyzed_df['market_cap'].median()
@@ -318,76 +546,106 @@ def main():
                     p75 = analyzed_df['market_cap'].quantile(0.75)
                     st.write(f"**25th Percentile:** ${p25:,.0f}")
                     st.write(f"**75th Percentile:** ${p75:,.0f}")
+                else:
+                    st.info("No buy transaction data available for market cap analysis.")
             
             with col2:
                 st.subheader("Transaction Volume")
-                if len(analyzed_df) > 0:
+                if not analyzed_df.empty:
                     value_col = next((col for col in analyzed_df.columns if col.lower() == 'value'), None)
-                    if not value_col:
-                        st.error("Value column not found in the data")
-                        return
+                    if value_col:
+                        total_usd_volume = analyzed_df[value_col].sum()
+                        avg_tx_size = analyzed_df[value_col].mean()
                         
-                    total_usd_volume = analyzed_df[value_col].sum()
-                    avg_tx_size = analyzed_df[value_col].mean()
-                    
-                    # Find wallet column properly
-                    wallet_col = next((col for col in analyzed_df.columns if col.lower() in ['wallet', 'address', 'from']), None)
-                    if wallet_col:
-                        unique_wallets = analyzed_df[wallet_col].nunique()
-                    else:
-                        unique_wallets = "Unknown"
-                    
-                    st.write(f"**Total USD Volume:** ${total_usd_volume:,.2f}")
-                    st.write(f"**Average Transaction:** ${avg_tx_size:,.2f}")
-                    st.write(f"**Unique Wallets:** {unique_wallets:,}")
-                    
-                    # Show SOL volume if available
-                    if 'sol_amount' in analyzed_df.columns:
-                        total_sol_volume = analyzed_df['sol_amount'].sum()
-                        if total_sol_volume > 0:
-                            avg_sol_tx = analyzed_df['sol_amount'].mean()
-                            st.write(f"**Total SOL Volume:** {total_sol_volume:,.2f} SOL")
-                            st.write(f"**Average SOL per TX:** {avg_sol_tx:,.2f} SOL")
+                        # Find wallet column properly
+                        wallet_col = next((col for col in analyzed_df.columns if col.lower() in ['wallet', 'address', 'from']), None)
+                        if wallet_col:
+                            unique_wallets = analyzed_df[wallet_col].nunique()
+                        else:
+                            unique_wallets = "Unknown"
+                        
+                        st.write(f"**Total USD Volume:** ${total_usd_volume:,.2f}")
+                        st.write(f"**Average Transaction:** ${avg_tx_size:,.2f}")
+                        st.write(f"**Unique Wallets:** {unique_wallets:,}")
+                        
+                        # Show SOL volume if available
+                        if 'sol_amount' in analyzed_df.columns:
+                            total_sol_volume = analyzed_df['sol_amount'].sum()
+                            if total_sol_volume > 0:
+                                avg_sol_tx = analyzed_df['sol_amount'].mean()
+                                st.write(f"**Total SOL Volume:** {total_sol_volume:,.2f} SOL")
+                                st.write(f"**Average SOL per TX:** {avg_sol_tx:,.2f} SOL")
+                else:
+                    st.info("No buy transaction data available for volume analysis.")
             
-            # Additional metrics in a third column layout
-            st.subheader("📈 Additional Metrics")
-            col3, col4, col5 = st.columns(3)
+            # P&L Summary insights
+            if not pnl_analysis.empty:
+                st.subheader("📈 P&L Overview")
+                col3, col4, col5 = st.columns(3)
+                
+                with col3:
+                    st.write("**Overall P&L:**")
+                    total_traders = len(pnl_analysis)
+                    profitable_count = len(pnl_analysis[pnl_analysis['is_profitable'] == True])
+                    profitability_rate = (profitable_count / total_traders) * 100 if total_traders > 0 else 0
+                    st.write(f"• Profitability Rate: {profitability_rate:.1f}%")
+                    st.write(f"• Profitable Wallets: {profitable_count}")
+                    st.write(f"• Loss-making Wallets: {total_traders - profitable_count}")
+                
+                with col4:
+                    st.write("**P&L Distribution:**")
+                    total_realized = pnl_analysis['realized_pnl_usd'].sum()
+                    total_unrealized = pnl_analysis['unrealized_pnl_usd'].sum()
+                    st.write(f"• Total Realized: ${total_realized:,.2f}")
+                    st.write(f"• Total Unrealized: ${total_unrealized:,.2f}")
+                    st.write(f"• Combined P&L: ${total_realized + total_unrealized:,.2f}")
+                
+                with col5:
+                    st.write("**Position Status:**")
+                    open_positions = len(pnl_analysis[pnl_analysis['has_position'] == True])
+                    closed_positions = len(pnl_analysis[pnl_analysis['has_position'] == False])
+                    st.write(f"• Open Positions: {open_positions}")
+                    st.write(f"• Closed Positions: {closed_positions}")
+                    avg_roi = pnl_analysis['roi_percentage'].mean()
+                    st.write(f"• Average ROI: {avg_roi:.1f}%")
             
-            with col3:
-                if len(early_entries) > 0:
+            # Additional metrics for buy transactions
+            if not analyzed_df.empty:
+                st.subheader("📊 Additional Buy Metrics")
+                col6, col7, col8 = st.columns(3)
+                
+                with col6:
+                    early_count = len(early_entries)
                     st.write("**Early Entry Stats:**")
-                    early_total_usd = early_entries['total_usd_value'].sum() if 'total_usd_value' in early_entries.columns else 0
-                    early_avg_usd = early_entries['total_usd_value'].mean() if 'total_usd_value' in early_entries.columns else 0
-                    st.write(f"• Total Spent: ${early_total_usd:,.2f}")
-                    st.write(f"• Avg per Wallet: ${early_avg_usd:,.2f}")
-            
-            with col4:
-                if len(whale_wallets) > 0:
+                    if early_count > 0:
+                        early_total_usd = early_entries['total_usd_value'].sum() if 'total_usd_value' in early_entries.columns else 0
+                        early_avg_usd = early_entries['total_usd_value'].mean() if 'total_usd_value' in early_entries.columns else 0
+                        st.write(f"• Count: {early_count}")
+                        st.write(f"• Total Spent: ${early_total_usd:,.2f}")
+                        st.write(f"• Avg per Wallet: ${early_avg_usd:,.2f}")
+                    else:
+                        st.write("• No early entries found")
+                
+                with col7:
+                    whale_count = len(whale_wallets)
                     st.write("**Whale Wallet Stats:**")
-                    whale_total_usd = whale_wallets['total_usd_value'].sum() if 'total_usd_value' in whale_wallets.columns else 0
-                    whale_avg_usd = whale_wallets['total_usd_value'].mean() if 'total_usd_value' in whale_wallets.columns else 0
-                    st.write(f"• Total Spent: ${whale_total_usd:,.2f}")
-                    st.write(f"• Avg per Whale: ${whale_avg_usd:,.2f}")
-            
-            with col5:
-                st.write("**Price Analysis:**")
-                min_price = analyzed_df['price'].min()
-                max_price = analyzed_df['price'].max()
-                avg_price = analyzed_df['price'].mean()
-                st.write(f"• Min Price: ${min_price:.3f}")
-                st.write(f"• Max Price: ${max_price:.3f}")
-                st.write(f"• Avg Price: ${avg_price:.3f}")
-            
-            # Volume-weighted analysis explanation
-            st.subheader("📊 Volume-Weighted Analysis")
-            st.markdown("""
-            **Volume-Weighted Average Market Cap**: Unlike simple averages, this calculation gives more weight to larger transactions, 
-            providing a more accurate representation of the market cap at which most value was traded.
-            
-            **Formula**: Σ(Market Cap × Transaction Value) / Σ(Transaction Value)
-            
-            This means larger purchases have more influence on the average, which better reflects actual market behavior.
-            """)
+                    if whale_count > 0:
+                        whale_total_usd = whale_wallets['total_usd_value'].sum() if 'total_usd_value' in whale_wallets.columns else 0
+                        whale_avg_usd = whale_wallets['total_usd_value'].mean() if 'total_usd_value' in whale_wallets.columns else 0
+                        st.write(f"• Count: {whale_count}")
+                        st.write(f"• Total Spent: ${whale_total_usd:,.2f}")
+                        st.write(f"• Avg per Whale: ${whale_avg_usd:,.2f}")
+                    else:
+                        st.write("• No whales found")
+                
+                with col8:
+                    st.write("**Price Analysis:**")
+                    min_price = analyzed_df['price'].min()
+                    max_price = analyzed_df['price'].max()
+                    avg_price = analyzed_df['price'].mean()
+                    st.write(f"• Min Price: ${min_price:.3f}")
+                    st.write(f"• Max Price: ${max_price:.3f}")
+                    st.write(f"• Avg Price: ${avg_price:.3f}")
             
         except Exception as e:
             st.error(f"❌ Error processing file: {str(e)}")
@@ -398,7 +656,7 @@ def main():
     
     # Footer
     st.markdown("---")
-    st.markdown("**Token Momentum Analyzer v1.7** | Built with Streamlit")
+    st.markdown("**Token Momentum Analyzer v2.0** | Built with Streamlit | Now with P&L Analysis")
 
 if __name__ == "__main__":
     main() 

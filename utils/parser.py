@@ -46,7 +46,7 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     cleaned_df = cleaned_df.dropna(how='all')
     
     # Convert numeric columns with case-insensitive matching
-    numeric_columns = ['value', 'amount']
+    numeric_columns = ['value', 'amount', 'amount1', 'amount2']
     for col_name in numeric_columns:
         # Find the actual column name regardless of case
         actual_col = next((col for col in cleaned_df.columns if col.lower() == col_name), None)
@@ -65,7 +65,8 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     # Remove rows with critical missing data using case-insensitive column names
     token2_col = next((col for col in cleaned_df.columns if col.lower() == 'token2'), None)
     value_col = next((col for col in cleaned_df.columns if col.lower() == 'value'), None)
-    amount_col = next((col for col in cleaned_df.columns if col.lower() == 'amount'), None)
+    # Look for any amount column (amount, amount1, amount2)
+    amount_col = next((col for col in cleaned_df.columns if col.lower() in ['amount', 'amount1', 'amount2']), None)
     
     if all([token2_col, value_col, amount_col]):
         cleaned_df = cleaned_df.dropna(subset=[token2_col, value_col, amount_col])
