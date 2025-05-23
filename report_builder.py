@@ -115,7 +115,7 @@ def analyze_wallets(df: pd.DataFrame, whale_threshold: float) -> Tuple[pd.DataFr
         wallet_stats_list.append({
             'wallet': wallet,
             'total_usd_value': round(total_usd_value, 2),
-            'total_sol_value': round(total_sol_value, 6),
+            'total_sol_value': round(total_sol_value, 2),
             'first_entry_time': first_entry_time,
             'avg_market_cap_weighted': round(weighted_market_cap, 2),
             'tx_count': tx_count,
@@ -149,7 +149,7 @@ def analyze_wallets(df: pd.DataFrame, whale_threshold: float) -> Tuple[pd.DataFr
             early_specific_list.append({
                 'wallet': wallet,
                 'total_usd_value': round(total_usd_early, 2),
-                'total_sol_value': round(total_sol_early, 6),
+                'total_sol_value': round(total_sol_early, 2),
                 'first_tx_time': first_tx_time,
                 'avg_entry_cap_weighted': round(weighted_entry_cap, 2),
                 'tx_count': tx_count_early

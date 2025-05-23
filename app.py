@@ -160,7 +160,7 @@ def main():
                     display_parsed = display_parsed.drop('adjusted_token_amount', axis=1)
                 
                 if 'price' in display_parsed.columns:
-                    display_parsed['Price per Token'] = display_parsed['price'].apply(lambda x: f"${x:.8f}")
+                    display_parsed['Price per Token'] = display_parsed['price'].apply(lambda x: f"${x:.3f}")
                     display_parsed = display_parsed.drop('price', axis=1)
                 
                 if 'market_cap' in display_parsed.columns:
@@ -226,7 +226,7 @@ def main():
                     if 'Total USD Spent' in display_early.columns:
                         display_early['Total USD Spent'] = display_early['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
                     if 'Total SOL Spent' in display_early.columns and display_early['Total SOL Spent'].sum() > 0:
-                        display_early['Total SOL Spent'] = display_early['Total SOL Spent'].apply(lambda x: f"{x:,.6f} SOL" if x > 0 else "0 SOL")
+                        display_early['Total SOL Spent'] = display_early['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL")
                     if 'Avg Entry Market Cap (Weighted)' in display_early.columns:
                         display_early['Avg Entry Market Cap (Weighted)'] = display_early['Avg Entry Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
                     if 'Transaction Count' in display_early.columns:
@@ -271,7 +271,7 @@ def main():
                     if 'Total USD Spent' in display_whales.columns:
                         display_whales['Total USD Spent'] = display_whales['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
                     if 'Total SOL Spent' in display_whales.columns and display_whales['Total SOL Spent'].sum() > 0:
-                        display_whales['Total SOL Spent'] = display_whales['Total SOL Spent'].apply(lambda x: f"{x:,.6f} SOL" if x > 0 else "0 SOL")
+                        display_whales['Total SOL Spent'] = display_whales['Total SOL Spent'].apply(lambda x: f"{x:,.2f} SOL" if x > 0 else "0 SOL")
                     if 'Avg Market Cap (Weighted)' in display_whales.columns:
                         display_whales['Avg Market Cap (Weighted)'] = display_whales['Avg Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
                     if 'Transaction Count' in display_whales.columns:
@@ -335,8 +335,8 @@ def main():
                         total_sol_volume = analyzed_df['sol_amount'].sum()
                         if total_sol_volume > 0:
                             avg_sol_tx = analyzed_df['sol_amount'].mean()
-                            st.write(f"**Total SOL Volume:** {total_sol_volume:,.6f} SOL")
-                            st.write(f"**Average SOL per TX:** {avg_sol_tx:,.6f} SOL")
+                            st.write(f"**Total SOL Volume:** {total_sol_volume:,.2f} SOL")
+                            st.write(f"**Average SOL per TX:** {avg_sol_tx:,.2f} SOL")
             
             # Additional metrics in a third column layout
             st.subheader("📈 Additional Metrics")
@@ -363,9 +363,9 @@ def main():
                 min_price = analyzed_df['price'].min()
                 max_price = analyzed_df['price'].max()
                 avg_price = analyzed_df['price'].mean()
-                st.write(f"• Min Price: ${min_price:.8f}")
-                st.write(f"• Max Price: ${max_price:.8f}")
-                st.write(f"• Avg Price: ${avg_price:.8f}")
+                st.write(f"• Min Price: ${min_price:.3f}")
+                st.write(f"• Max Price: ${max_price:.3f}")
+                st.write(f"• Avg Price: ${avg_price:.3f}")
             
             # Volume-weighted analysis explanation
             st.subheader("📊 Volume-Weighted Analysis")
