@@ -70,55 +70,96 @@ def analyze_wallets(df: pd.DataFrame, whale_threshold: float) -> Tuple[pd.DataFr
     timestamp_col = next((col for col in df.columns if col.lower() in ['timestamp', 'block time', 'human time']), None)
     tx_hash_col = next((col for col in df.columns if col.lower() in ['tx_hash', 'signature']), None)
     
+    # Find SOL-related columns for SOL value calculation
+    token1_col = next((col for col in df.columns if col.lower() == 'token1'), None)
+    amount1_col = next((col for col in df.columns if col.lower() == 'amount1'), None)
+    decimals1_col = next((col for col in df.columns if col.lower() == 'tokendecimals1'), None)
+    
     if not all([value_col, timestamp_col, tx_hash_col]):
         raise ValueError("Required columns (value, timestamp, tx_hash) not found in DataFrame")
     
-    # Group by wallet for analysis
-    wallet_stats = df.groupby(wallet_col).agg({
-        value_col: 'sum',
-        timestamp_col: 'min',
-        'market_cap': 'mean',
-        'early_flag': 'any',
-        tx_hash_col: 'count'
-    }).round(2)
+    # Create a copy to avoid modifying original
+    analysis_df = df.copy()
     
-    wallet_stats = wallet_stats.rename(columns={
-        value_col: 'total_value',
-        timestamp_col: 'first_entry_time',
-        'market_cap': 'avg_market_cap',
-        tx_hash_col: 'tx_count'
-    })
+    # Calculate SOL values if SOL columns are available
+    sol_address = "So11111111111111111111111111111111111111112"  # Standard SOL token address
+    if all([token1_col, amount1_col, decimals1_col]):
+        # Check if Token1 contains SOL transactions
+        sol_mask = analysis_df[token1_col] == sol_address
+        analysis_df['sol_amount'] = 0.0
+        analysis_df.loc[sol_mask, 'sol_amount'] = (
+            analysis_df.loc[sol_mask, amount1_col] / (10 ** analysis_df.loc[sol_mask, decimals1_col])
+        )
+    else:
+        # If no SOL data available, set to 0
+        analysis_df['sol_amount'] = 0.0
     
-    # Reset index to make wallet a column
-    wallet_stats = wallet_stats.reset_index()
-    wallet_stats = wallet_stats.rename(columns={wallet_col: 'wallet'})
+    # Group by wallet for analysis with volume-weighted calculations
+    wallet_groups = analysis_df.groupby(wallet_col)
+    
+    wallet_stats_list = []
+    for wallet, group in wallet_groups:
+        # Basic aggregations
+        total_usd_value = group[value_col].sum()
+        total_sol_value = group['sol_amount'].sum()
+        first_entry_time = group[timestamp_col].min()
+        tx_count = len(group)
+        has_early_entry = group['early_flag'].any()
+        
+        # Volume-weighted average market cap
+        if total_usd_value > 0:
+            weighted_market_cap = (group['market_cap'] * group[value_col]).sum() / total_usd_value
+        else:
+            weighted_market_cap = group['market_cap'].mean()
+        
+        wallet_stats_list.append({
+            'wallet': wallet,
+            'total_usd_value': round(total_usd_value, 2),
+            'total_sol_value': round(total_sol_value, 6),
+            'first_entry_time': first_entry_time,
+            'avg_market_cap_weighted': round(weighted_market_cap, 2),
+            'tx_count': tx_count,
+            'early_flag': has_early_entry
+        })
+    
+    wallet_stats = pd.DataFrame(wallet_stats_list)
     
     # Early entries: wallets that made at least one early buy
     early_entries = wallet_stats[wallet_stats['early_flag'] == True].copy()
     early_entries = early_entries.drop('early_flag', axis=1)
     
-    # Filter for early entries specifically
-    early_txs = df[df['early_flag'] == True]
+    # Filter for early entries specifically for more detailed analysis
+    early_txs = analysis_df[analysis_df['early_flag'] == True]
     if not early_txs.empty:
-        early_specific_stats = early_txs.groupby(wallet_col).agg({
-            timestamp_col: 'min',
-            value_col: 'sum',
-            'market_cap': 'mean',
-            tx_hash_col: 'count'
-        }).round(2)
+        early_groups = early_txs.groupby(wallet_col)
+        early_specific_list = []
         
-        early_specific_stats = early_specific_stats.rename(columns={
-            timestamp_col: 'first_tx_time',
-            value_col: 'total_value',
-            'market_cap': 'avg_entry_cap',
-            tx_hash_col: 'tx_count'
-        })
+        for wallet, group in early_groups:
+            total_usd_early = group[value_col].sum()
+            total_sol_early = group['sol_amount'].sum()
+            first_tx_time = group[timestamp_col].min()
+            tx_count_early = len(group)
+            
+            # Volume-weighted average entry market cap for early transactions only
+            if total_usd_early > 0:
+                weighted_entry_cap = (group['market_cap'] * group[value_col]).sum() / total_usd_early
+            else:
+                weighted_entry_cap = group['market_cap'].mean()
+            
+            early_specific_list.append({
+                'wallet': wallet,
+                'total_usd_value': round(total_usd_early, 2),
+                'total_sol_value': round(total_sol_early, 6),
+                'first_tx_time': first_tx_time,
+                'avg_entry_cap_weighted': round(weighted_entry_cap, 2),
+                'tx_count': tx_count_early
+            })
         
-        early_entries = early_specific_stats.reset_index()
-        early_entries = early_entries.rename(columns={wallet_col: 'wallet'})
+        early_entries = pd.DataFrame(early_specific_list)
     
     # Whale wallets: wallets above threshold
-    whale_wallets = wallet_stats[wallet_stats['total_value'] > whale_threshold].copy()
+    whale_wallets = wallet_stats[wallet_stats['total_usd_value'] > whale_threshold].copy()
+    whale_wallets = whale_wallets.drop('early_flag', axis=1)
     
     return early_entries, whale_wallets
 

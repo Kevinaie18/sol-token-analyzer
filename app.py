@@ -121,19 +121,24 @@ def main():
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
-                st.metric("Total Buy Transactions", len(analyzed_df))
+                st.metric("Total Buy Transactions", f"{len(analyzed_df):,}")
             
             with col2:
                 early_count = len(early_entries)
-                st.metric("Early Entry Wallets", early_count)
+                st.metric("Early Entry Wallets", f"{early_count:,}")
             
             with col3:
                 whale_count = len(whale_wallets)
-                st.metric("Whale Wallets", whale_count)
+                st.metric("Whale Wallets", f"{whale_count:,}")
             
             with col4:
-                avg_market_cap = analyzed_df['market_cap'].mean()
-                st.metric("Avg Market Cap", f"${avg_market_cap:,.0f}")
+                # Calculate volume-weighted average market cap for overall summary
+                total_volume = analyzed_df['value'].sum()
+                if total_volume > 0:
+                    weighted_avg_cap = (analyzed_df['market_cap'] * analyzed_df['value']).sum() / total_volume
+                else:
+                    weighted_avg_cap = analyzed_df['market_cap'].mean()
+                st.metric("Avg Market Cap (Weighted)", f"${weighted_avg_cap:,.0f}")
             
             # Tabs for different views
             tab1, tab2, tab3 = st.tabs(["📈 Parsed Transactions", "🎯 Early Entries", "🐋 Whale Wallets"])
@@ -141,7 +146,50 @@ def main():
             with tab1:
                 st.subheader("All Buy Transactions")
                 st.info("💡 **Token amounts are automatically adjusted for decimals** - Raw amounts from the CSV are converted using the TokenDecimals column for accurate calculations.")
-                st.dataframe(parsed_transactions, use_container_width=True)
+                
+                # Format parsed transactions for better display
+                display_parsed = parsed_transactions.copy()
+                
+                # Format numeric columns
+                if 'value' in display_parsed.columns:
+                    display_parsed['USD Value'] = display_parsed['value'].apply(lambda x: f"${x:,.2f}")
+                    display_parsed = display_parsed.drop('value', axis=1)
+                
+                if 'adjusted_token_amount' in display_parsed.columns:
+                    display_parsed['Token Amount'] = display_parsed['adjusted_token_amount'].apply(lambda x: f"{x:,.6f}")
+                    display_parsed = display_parsed.drop('adjusted_token_amount', axis=1)
+                
+                if 'price' in display_parsed.columns:
+                    display_parsed['Price per Token'] = display_parsed['price'].apply(lambda x: f"${x:.8f}")
+                    display_parsed = display_parsed.drop('price', axis=1)
+                
+                if 'market_cap' in display_parsed.columns:
+                    display_parsed['Market Cap'] = display_parsed['market_cap'].apply(lambda x: f"${x:,.0f}")
+                    display_parsed = display_parsed.drop('market_cap', axis=1)
+                
+                # Rename columns for better readability
+                column_renames = {
+                    'tx_hash': 'Transaction Hash',
+                    'signature': 'Transaction Hash', 
+                    'timestamp': 'Timestamp',
+                    'block time': 'Timestamp',
+                    'human time': 'Timestamp',
+                    'wallet': 'Wallet Address',
+                    'address': 'Wallet Address',
+                    'from': 'Wallet Address',
+                    'action': 'Action',
+                    'amount_raw': 'Raw Amount',
+                    'decimals': 'Decimals',
+                    'token1': 'Token 1',
+                    'token2': 'Token 2',
+                    'early_flag': 'Early Entry'
+                }
+                
+                for old_name, new_name in column_renames.items():
+                    if old_name in display_parsed.columns:
+                        display_parsed = display_parsed.rename(columns={old_name: new_name})
+                
+                st.dataframe(display_parsed, use_container_width=True)
                 
                 # Download button for parsed transactions
                 csv_buffer = io.StringIO()
@@ -155,8 +203,36 @@ def main():
             
             with tab2:
                 st.subheader("Early Entry Analysis")
+                st.info("💡 **Volume-weighted market cap** - Average market cap weighted by transaction size (larger transactions have more influence on the average)")
                 if len(early_entries) > 0:
-                    st.dataframe(early_entries, use_container_width=True)
+                    # Format the dataframe for better display
+                    display_early = early_entries.copy()
+                    
+                    # Rename columns for better readability
+                    column_renames_early = {
+                        'wallet': 'Wallet Address',
+                        'total_usd_value': 'Total USD Spent',
+                        'total_sol_value': 'Total SOL Spent',
+                        'first_tx_time': 'First Entry Time',
+                        'avg_entry_cap_weighted': 'Avg Entry Market Cap (Weighted)',
+                        'tx_count': 'Transaction Count'
+                    }
+                    
+                    for old_name, new_name in column_renames_early.items():
+                        if old_name in display_early.columns:
+                            display_early = display_early.rename(columns={old_name: new_name})
+                    
+                    # Format numerical values
+                    if 'Total USD Spent' in display_early.columns:
+                        display_early['Total USD Spent'] = display_early['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
+                    if 'Total SOL Spent' in display_early.columns and display_early['Total SOL Spent'].sum() > 0:
+                        display_early['Total SOL Spent'] = display_early['Total SOL Spent'].apply(lambda x: f"{x:,.6f} SOL" if x > 0 else "0 SOL")
+                    if 'Avg Entry Market Cap (Weighted)' in display_early.columns:
+                        display_early['Avg Entry Market Cap (Weighted)'] = display_early['Avg Entry Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
+                    if 'Transaction Count' in display_early.columns:
+                        display_early['Transaction Count'] = display_early['Transaction Count'].apply(lambda x: f"{x:,}")
+                    
+                    st.dataframe(display_early, use_container_width=True)
                     
                     # Download button for early entries
                     csv_buffer = io.StringIO()
@@ -172,8 +248,36 @@ def main():
             
             with tab3:
                 st.subheader("Whale Wallet Analysis")
+                st.info("💡 **Volume-weighted market cap** - Average market cap weighted by transaction size (larger transactions have more influence on the average)")
                 if len(whale_wallets) > 0:
-                    st.dataframe(whale_wallets, use_container_width=True)
+                    # Format the dataframe for better display
+                    display_whales = whale_wallets.copy()
+                    
+                    # Rename columns for better readability
+                    column_renames_whales = {
+                        'wallet': 'Wallet Address',
+                        'total_usd_value': 'Total USD Spent',
+                        'total_sol_value': 'Total SOL Spent',
+                        'first_entry_time': 'First Entry Time',
+                        'avg_market_cap_weighted': 'Avg Market Cap (Weighted)',
+                        'tx_count': 'Transaction Count'
+                    }
+                    
+                    for old_name, new_name in column_renames_whales.items():
+                        if old_name in display_whales.columns:
+                            display_whales = display_whales.rename(columns={old_name: new_name})
+                    
+                    # Format numerical values
+                    if 'Total USD Spent' in display_whales.columns:
+                        display_whales['Total USD Spent'] = display_whales['Total USD Spent'].apply(lambda x: f"${x:,.2f}")
+                    if 'Total SOL Spent' in display_whales.columns and display_whales['Total SOL Spent'].sum() > 0:
+                        display_whales['Total SOL Spent'] = display_whales['Total SOL Spent'].apply(lambda x: f"{x:,.6f} SOL" if x > 0 else "0 SOL")
+                    if 'Avg Market Cap (Weighted)' in display_whales.columns:
+                        display_whales['Avg Market Cap (Weighted)'] = display_whales['Avg Market Cap (Weighted)'].apply(lambda x: f"${x:,.0f}")
+                    if 'Transaction Count' in display_whales.columns:
+                        display_whales['Transaction Count'] = display_whales['Transaction Count'].apply(lambda x: f"{x:,}")
+                    
+                    st.dataframe(display_whales, use_container_width=True)
                     
                     # Download button for whale wallets
                     csv_buffer = io.StringIO()
@@ -202,16 +306,77 @@ def main():
                     st.write(f"**Min Market Cap:** ${min_cap:,.0f}")
                     st.write(f"**Max Market Cap:** ${max_cap:,.0f}")
                     st.write(f"**Median Market Cap:** ${median_cap:,.0f}")
+                    
+                    # Add percentiles for better insight
+                    p25 = analyzed_df['market_cap'].quantile(0.25)
+                    p75 = analyzed_df['market_cap'].quantile(0.75)
+                    st.write(f"**25th Percentile:** ${p25:,.0f}")
+                    st.write(f"**75th Percentile:** ${p75:,.0f}")
             
             with col2:
                 st.subheader("Transaction Volume")
                 if len(analyzed_df) > 0:
-                    total_volume = analyzed_df['value'].sum()
+                    total_usd_volume = analyzed_df['value'].sum()
                     avg_tx_size = analyzed_df['value'].mean()
                     
-                    st.write(f"**Total Volume:** ${total_volume:,.0f}")
-                    st.write(f"**Average Transaction:** ${avg_tx_size:,.0f}")
-                    st.write(f"**Unique Wallets:** {analyzed_df['wallet'].nunique()}")
+                    # Find wallet column properly
+                    wallet_col = next((col for col in analyzed_df.columns if col.lower() in ['wallet', 'address', 'from']), None)
+                    if wallet_col:
+                        unique_wallets = analyzed_df[wallet_col].nunique()
+                    else:
+                        unique_wallets = "Unknown"
+                    
+                    st.write(f"**Total USD Volume:** ${total_usd_volume:,.2f}")
+                    st.write(f"**Average Transaction:** ${avg_tx_size:,.2f}")
+                    st.write(f"**Unique Wallets:** {unique_wallets:,}" if isinstance(unique_wallets, int) else f"**Unique Wallets:** {unique_wallets}")
+                    
+                    # Show SOL volume if available
+                    if 'sol_amount' in analyzed_df.columns:
+                        total_sol_volume = analyzed_df['sol_amount'].sum()
+                        if total_sol_volume > 0:
+                            avg_sol_tx = analyzed_df['sol_amount'].mean()
+                            st.write(f"**Total SOL Volume:** {total_sol_volume:,.6f} SOL")
+                            st.write(f"**Average SOL per TX:** {avg_sol_tx:,.6f} SOL")
+            
+            # Additional metrics in a third column layout
+            st.subheader("📈 Additional Metrics")
+            col3, col4, col5 = st.columns(3)
+            
+            with col3:
+                if len(early_entries) > 0:
+                    st.write("**Early Entry Stats:**")
+                    early_total_usd = early_entries['total_usd_value'].sum() if 'total_usd_value' in early_entries.columns else 0
+                    early_avg_usd = early_entries['total_usd_value'].mean() if 'total_usd_value' in early_entries.columns else 0
+                    st.write(f"• Total Spent: ${early_total_usd:,.2f}")
+                    st.write(f"• Avg per Wallet: ${early_avg_usd:,.2f}")
+            
+            with col4:
+                if len(whale_wallets) > 0:
+                    st.write("**Whale Wallet Stats:**")
+                    whale_total_usd = whale_wallets['total_usd_value'].sum() if 'total_usd_value' in whale_wallets.columns else 0
+                    whale_avg_usd = whale_wallets['total_usd_value'].mean() if 'total_usd_value' in whale_wallets.columns else 0
+                    st.write(f"• Total Spent: ${whale_total_usd:,.2f}")
+                    st.write(f"• Avg per Whale: ${whale_avg_usd:,.2f}")
+            
+            with col5:
+                st.write("**Price Analysis:**")
+                min_price = analyzed_df['price'].min()
+                max_price = analyzed_df['price'].max()
+                avg_price = analyzed_df['price'].mean()
+                st.write(f"• Min Price: ${min_price:.8f}")
+                st.write(f"• Max Price: ${max_price:.8f}")
+                st.write(f"• Avg Price: ${avg_price:.8f}")
+            
+            # Volume-weighted analysis explanation
+            st.subheader("📊 Volume-Weighted Analysis")
+            st.markdown("""
+            **Volume-Weighted Average Market Cap**: Unlike simple averages, this calculation gives more weight to larger transactions, 
+            providing a more accurate representation of the market cap at which most value was traded.
+            
+            **Formula**: Σ(Market Cap × Transaction Value) / Σ(Transaction Value)
+            
+            This means larger purchases have more influence on the average, which better reflects actual market behavior.
+            """)
             
         except Exception as e:
             st.error(f"❌ Error processing file: {str(e)}")
