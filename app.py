@@ -39,7 +39,7 @@ def main():
         "Total Supply *", 
         value=1000000.0,
         min_value=1.0,
-        format="%d",
+        format="%.0f",
         help="Total token supply for market cap calculation"
     )
     
@@ -49,7 +49,7 @@ def main():
         "Early Entry Market Cap ($)", 
         value=100000.0,
         min_value=1.0,
-        format="%d",
+        format="%.0f",
         help="Market cap below this value flags as early entry"
     )
     
@@ -57,7 +57,7 @@ def main():
         "Whale Wallet Threshold ($)", 
         value=10000.0,
         min_value=1.0,
-        format="%d",
+        format="%.0f",
         help="Total USD spent above this value flags as whale"
     )
     
